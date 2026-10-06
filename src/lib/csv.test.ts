@@ -25,6 +25,14 @@ describe("csvCell", () => {
     expect(csvCell("@SUM(A1)")).toBe("'@SUM(A1)");
     expect(csvCell("\tcmd")).toBe("'\tcmd");
   });
+  it("neutralises formulas hidden behind leading whitespace or fullwidth characters", () => {
+    expect(csvCell(" =1+1")).toBe("' =1+1");
+    expect(csvCell("  @SUM(A1)")).toBe("'  @SUM(A1)");
+    for (const c of ["＝", "＋", "－", "＠"]) expect(csvCell(`${c}1`)).toBe(`'${c}1`);
+    expect(csvCell("  ＝1")).toBe("'  ＝1");
+    expect(csvCell("Asha Rao")).toBe("Asha Rao");
+    expect(csvCell(" Asha")).toBe(" Asha");
+  });
   it("neutralises a leading carriage return, and quotes the cell because of it", () => {
     expect(csvCell("\r=1+1")).toBe("\"'\r=1+1\"");
   });
