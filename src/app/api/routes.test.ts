@@ -53,7 +53,7 @@ vi.mock("@/lib/server/repo", async () => {
     getPosterRecord: async (uid: string) => h.posters.get(uid) ?? null,
     listUsers: async () => [...h.users.values()],
     listAttemptSummaries: async () =>
-      new Map([...shared.data].map(([uid, a]) => [uid, { status: a.status, score: a.score }])),
+      new Map([...shared.data].map(([uid, a]) => [uid, { status: a.status, score: a.score, startedAt: a.startedAt }])),
     listPosterRecords: async () => new Map(h.posters as Map<string, PosterRecord>),
     signedReadUrl: async (p: string, ttlMs?: number) => {
       h.signed.push({ path: p, ttlMs });
@@ -336,7 +336,7 @@ describe("GET /api/admin/overview", () => {
     h.users.set("u2", { uid: "u2", email: "b@b.c", name: "Asha", rollNo: "7", year: "TE", branch: "COMP", createdAt: 2 });
     h.users.set("u3", { uid: "u3", email: "c@b.c", name: "Mira", rollNo: "9", year: "BE", branch: "MECH", createdAt: 3 });
     mem().data.set("u1", { questions: [], answers: {}, startedAt: 1, status: "submitted", score: 14, submittedAt: 2, source: "fallback" });
-    mem().data.set("u3", { questions: [], answers: {}, startedAt: 1, status: "in_progress", score: null, submittedAt: null, source: "fallback" });
+    mem().data.set("u3", { questions: [], answers: {}, startedAt: Date.now() - 1000, status: "in_progress", score: null, submittedAt: null, source: "fallback" });
     h.posters.set("u2", { path: "posters/u2/1-ab.png", fileType: "image/png", size: 9, uploadedAt: 55 });
   });
 
@@ -382,6 +382,18 @@ describe("GET /api/admin/overview", () => {
     expect(rows[1].quiz).toEqual({ status: "in_progress", score: null });
     expect(rows[1].poster).toBeNull();
     expect(rows[2].quiz).toEqual({ status: "submitted", score: 14 });
+  });
+
+  it("scores an expired in-progress attempt that the student never came back to", async () => {
+    const questions = Array.from({ length: 4 }, (_, i) => ({ text: `Q${i}`, options: ["a", "b", "c", "d"], answer: 0 }));
+    mem().data.set("u2", { questions, answers: { "0": 0, "1": 0, "2": 1 }, startedAt: Date.now() - 20 * 60 * 1000, status: "in_progress", score: null, submittedAt: null, source: "fallback" });
+    const { GET } = await import("./admin/overview/route");
+    const { rows } = await (await call(GET, { method: "GET", headers: ADMIN })).json();
+    const by = (n: string) => rows.find((r: { name: string }) => r.name === n);
+    expect(by("Asha").quiz).toEqual({ status: "submitted", score: 2 });
+    expect(by("Mira").quiz).toEqual({ status: "in_progress", score: null }); // not expired
+    expect(by("Zed =cmd").quiz).toEqual({ status: "submitted", score: 14 }); // untouched
+    expect(mem().data.get("u2")!.status).toBe("submitted");
   });
 
   it("only exposes posters through short-lived signed URLs", async () => {

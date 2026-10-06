@@ -234,3 +234,43 @@ describe("store atomicity contract", () => {
     expect(store.data.get("u1")!.answers).toEqual({ "0": 0 });
   });
 });
+
+describe("settleExpiredSummaries", () => {
+  const rec = (over: Partial<import("@/lib/quiz/service").AttemptRecord>) => ({
+    questions, answers: {}, startedAt: 0, status: "in_progress" as const, score: null, submittedAt: null, source: "fallback" as const, ...over,
+  });
+  const sum = (startedAt: number, status = "in_progress", score: number | null = null) => ({ status, score, startedAt });
+
+  it("scores expired in-progress attempts, leaves live and submitted ones alone", async () => {
+    const { settleExpiredSummaries } = await import("@/lib/quiz/service");
+    const old = clock - 20 * 60 * 1000;
+    store.data.set("exp", rec({ startedAt: old, answers: { "0": 0, "1": 1, "2": 0 } }));
+    store.data.set("live", rec({ startedAt: clock - 1000 }));
+    store.data.set("done", rec({ startedAt: old, status: "submitted", score: 7, submittedAt: old + 1 }));
+    const m = new Map([["exp", sum(old)], ["live", sum(clock - 1000)], ["done", sum(old, "submitted", 7)]]);
+    await settleExpiredSummaries(m, deps);
+    expect(m.get("exp")).toMatchObject({ status: "submitted", score: 2 });
+    expect(m.get("live")).toMatchObject({ status: "in_progress", score: null });
+    expect(m.get("done")).toMatchObject({ status: "submitted", score: 7 });
+    expect(store.data.get("done")!.score).toBe(7);
+    // idempotent
+    await settleExpiredSummaries(m, deps);
+    expect(m.get("exp")!.score).toBe(2);
+  });
+  it("one failing attempt stays in progress without failing the rest", async () => {
+    const { settleExpiredSummaries } = await import("@/lib/quiz/service");
+    const old = clock - 20 * 60 * 1000;
+    store.data.set("a", rec({ startedAt: old }));
+    store.data.set("b", rec({ startedAt: old }));
+    const realGet = store.get.bind(store);
+    store.get = async (uid: string) => {
+      if (uid === "a") throw new Error("boom");
+      return realGet(uid);
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const m = new Map([["a", sum(old)], ["b", sum(old)]]);
+    await settleExpiredSummaries(m, deps);
+    expect(m.get("a")!.status).toBe("in_progress");
+    expect(m.get("b")!.status).toBe("submitted");
+  });
+});

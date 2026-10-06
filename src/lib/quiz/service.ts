@@ -131,6 +131,36 @@ export async function startAttempt(uid: string, deps: QuizDeps): Promise<Attempt
   return toView(record, deps.now());
 }
 
+export interface AttemptSummary {
+  status: string;
+  score: number | null;
+  startedAt: number;
+}
+
+const SETTLE_BATCH = 10;
+
+/**
+ * Admin read path: scores in-progress attempts whose time is up (a student who never reopened /quiz).
+ * Uses the race-safe finalize, so it is idempotent and never rescores submitted attempts.
+ * Mutates the map; an attempt that fails to settle stays in_progress rather than failing the call.
+ */
+export async function settleExpiredSummaries(summaries: Map<string, AttemptSummary>, deps: QuizDeps): Promise<void> {
+  const now = deps.now();
+  const uids = [...summaries].filter(([, a]) => a.status === "in_progress" && isExpired(a.startedAt, now)).map(([u]) => u);
+  for (let i = 0; i < uids.length; i += SETTLE_BATCH) {
+    await Promise.all(
+      uids.slice(i, i + SETTLE_BATCH).map(async (uid) => {
+        try {
+          const v = await getAttemptView(uid, deps);
+          if (v?.status === "submitted") summaries.set(uid, { ...summaries.get(uid)!, status: v.status, score: v.score });
+        } catch (e) {
+          console.error("could not settle expired attempt", uid, e instanceof Error ? e.message : e);
+        }
+      }),
+    );
+  }
+}
+
 export async function getAttemptView(uid: string, deps: QuizDeps): Promise<AttemptView | null> {
   const a = await deps.store.get(uid);
   if (!a) return null;

@@ -1,6 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { adminBucket, adminDb } from "@/lib/firebase/admin";
 import type { PosterStore } from "@/lib/poster/service";
+import type { AttemptSummary } from "@/lib/quiz/service";
 import {
   AlreadyExistsError,
   type AttemptRecord,
@@ -102,9 +103,9 @@ export async function listUsers(): Promise<UserDoc[]> {
   return (await col("users").get()).docs.map((d) => d.data() as UserDoc);
 }
 
-export async function listAttemptSummaries(): Promise<Map<string, { status: string; score: number | null }>> {
-  const snap = await col("attempts").select("status", "score").get();
-  return new Map(snap.docs.map((d) => [d.id, d.data() as { status: string; score: number | null }]));
+export async function listAttemptSummaries(): Promise<Map<string, AttemptSummary>> {
+  const snap = await col("attempts").select("status", "score", "startedAt").get();
+  return new Map(snap.docs.map((d) => [d.id, d.data() as AttemptSummary]));
 }
 
 export async function listPosterRecords(): Promise<Map<string, PosterDoc>> {

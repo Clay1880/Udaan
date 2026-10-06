@@ -1,6 +1,8 @@
 import type { AdminRow } from "@/lib/admin/rows";
 import { route } from "@/lib/server/http";
 import { requireAdmin } from "@/lib/server/auth";
+import { quizDeps } from "@/lib/server/deps";
+import { settleExpiredSummaries } from "@/lib/quiz/service";
 import { listAttemptSummaries, listPosterRecords, listUsers, signedReadUrl } from "@/lib/server/repo";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,8 @@ const POSTER_URL_TTL_MS = 60 * 60 * 1000;
 export const GET = route(async (req) => {
   await requireAdmin(req);
   const [users, attempts, posters] = await Promise.all([listUsers(), listAttemptSummaries(), listPosterRecords()]);
+  // Students who answered and left never trigger scoring themselves: finalize expired attempts first.
+  await settleExpiredSummaries(attempts, quizDeps());
   const rows: AdminRow[] = await Promise.all(
     users.map(async (u) => {
       const a = attempts.get(u.uid);
