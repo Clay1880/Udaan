@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ref, uploadBytesResumable, type UploadTask } from "firebase/storage";
 import { Cloud, Lock, Palette, Sparkle } from "@/components/art";
 import { Button, Card, Label, Tag } from "@/components/ui";
 import { LoadErrorPanel, LoadingPanel } from "@/components/page-state";
@@ -11,8 +10,7 @@ import { formatIst, windowMessage } from "@/lib/client/format";
 import { useWindowBoundary } from "@/lib/client/use-window-boundary";
 import { useRequireMe } from "@/lib/client/use-me";
 import { POSTER } from "@/lib/config";
-import { storage } from "@/lib/firebase/client";
-import { checkPosterFile, POSTER_EXT, posterPath, type PosterType } from "@/lib/poster/client";
+import { checkPosterFile, POSTER_EXT, putFile, UploadError, type PosterType, type Upload } from "@/lib/poster/client";
 
 interface Current {
   uploadedAt: number;
@@ -35,15 +33,6 @@ const ghostLink =
 
 const sizeText = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
 const extLabel = (type: string) => (POSTER_EXT[type as PosterType] ?? "file").toUpperCase();
-
-function storageMessage(e: unknown): string {
-  const code = (e as { code?: string }).code ?? "";
-  if (code === "storage/unauthorized") return "The upload was refused. Make sure the file is a PDF, JPG or PNG under 10 MB, then try again.";
-  if (code === "storage/canceled") return "The upload was cancelled.";
-  if (code === "storage/retry-limit-exceeded" || code === "storage/unknown") return "The upload stopped. Check your connection and try again.";
-  if (code === "storage/quota-exceeded") return "Uploads are unavailable right now. Please tell the organisers.";
-  return "Upload failed. Check your connection and try again.";
-}
 
 /** Big tile standing in for a PDF (or an image that won't load). */
 function FileTile({ type, name }: { type: string; name?: string }) {
@@ -71,9 +60,9 @@ export default function PosterPage() {
   const [drag, setDrag] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const task = useRef<UploadTask | null>(null);
+  const task = useRef<Upload | null>(null);
   const loadedAt = useRef(0);
-  /** An upload that reached storage but whose confirm call failed: retry the confirm, don't re-upload. */
+  /** An upload that reached Drive but whose confirm call failed: retry the confirm, don't re-upload. */
   const uploaded = useRef<{ file: File; path: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -122,7 +111,7 @@ export default function PosterPage() {
   }, [phase]);
   useEffect(
     () => () => {
-      task.current?.cancel();
+      task.current?.abort();
     },
     [],
   );
@@ -154,30 +143,25 @@ export default function PosterPage() {
     let path = prior && prior.file === picked.file ? prior.path : null;
     try {
       if (!path) {
-        const fresh = posterPath(user.uid, picked.type);
         setPhase("uploading");
         setProgress(0);
         setSpoken("Uploading your poster.");
-        let lastSpoken = 0;
-        await new Promise<void>((resolve, reject) => {
-          const t = uploadBytesResumable(ref(storage(), fresh), picked.file, { contentType: picked.type });
-          task.current = t;
-          t.on(
-            "state_changed",
-            (s) => {
-              const pct = s.totalBytes ? Math.round((s.bytesTransferred / s.totalBytes) * 100) : 0;
-              setProgress(pct);
-              // Announce in quarters so screen readers aren't flooded.
-              const step = Math.floor(pct / 25) * 25;
-              if (step > lastSpoken && step < 100) {
-                lastSpoken = step;
-                setSpoken(`Uploaded ${step} percent.`);
-              }
-            },
-            reject,
-            () => resolve(),
-          );
+        const { uploadUrl } = await call<{ uploadUrl: string }>("/api/poster/start", {
+          method: "POST",
+          body: { type: picked.type, size: picked.file.size },
         });
+        let lastSpoken = 0;
+        const up = putFile(uploadUrl, picked.file, picked.type, (pct) => {
+          setProgress(pct);
+          // Announce in quarters so screen readers aren't flooded.
+          const step = Math.floor(pct / 25) * 25;
+          if (step > lastSpoken && step < 100) {
+            lastSpoken = step;
+            setSpoken(`Uploaded ${step} percent.`);
+          }
+        });
+        task.current = up;
+        const fresh = await up.done;
         task.current = null;
         uploaded.current = { file: picked.file, path: fresh };
         path = fresh;
@@ -199,8 +183,8 @@ export default function PosterPage() {
         // The server rejected (and removed) the file: the next try must upload afresh.
         if (e.status >= 400 && e.status < 500) uploaded.current = null;
         if (e.code === "WINDOW_CLOSED" || e.code === "WINDOW_NOT_OPEN") void refresh().catch(() => {});
-      } else if ((e as { code?: string }).code?.startsWith("storage/")) {
-        msg = storageMessage(e);
+      } else if (e instanceof UploadError) {
+        msg = "The upload stopped. Check your connection and try again.";
       } else {
         msg = path && uploaded.current ? "Your file is uploaded but we couldn't confirm it. Press the button again to finish." : "Something went wrong. Check your connection and try again.";
       }

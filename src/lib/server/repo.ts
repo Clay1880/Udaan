@@ -1,6 +1,8 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { adminBucket, adminDb } from "@/lib/firebase/admin";
+import { adminDb } from "@/lib/firebase/admin";
+import { createUploadSession, deleteFile, getFile } from "@/lib/drive";
 import type { PosterStore } from "@/lib/poster/service";
+import { signPosterUrl } from "@/lib/poster/signed-url";
 import type { AttemptSummary } from "@/lib/quiz/service";
 import {
   AlreadyExistsError,
@@ -113,24 +115,23 @@ export async function listPosterRecords(): Promise<Map<string, PosterDoc>> {
   return new Map(snap.docs.map((d) => [d.id, d.data() as PosterDoc]));
 }
 
-export class FirebasePosterStore implements PosterStore {
-  async head(path: string) {
-    try {
-      const [meta] = await adminBucket().file(path).getMetadata();
-      return { contentType: String(meta.contentType ?? ""), size: Number(meta.size ?? 0) };
-    } catch (e) {
-      if ((e as { code?: number }).code === 404) return null;
-      throw e;
-    }
+/** Posters live in a Google Drive folder; `PosterDoc.path` is the Drive file id. */
+export class DrivePosterStore implements PosterStore {
+  async head(id: string) {
+    const f = await getFile(id);
+    return f ? { contentType: f.mimeType, size: f.size, owner: f.uid } : null;
   }
-  async remove(path: string) {
-    await adminBucket().file(path).delete({ ignoreNotFound: true });
+  async remove(id: string) {
+    await deleteFile(id);
+  }
+  startUpload(a: { uid: string; name: string; contentType: string; size: number; origin: string }) {
+    return createUploadSession({ name: a.name, mimeType: a.contentType, size: a.size, uid: a.uid, origin: a.origin });
   }
   get = getPosterRecord;
   set = setPosterRecord;
 }
 
-export async function signedReadUrl(path: string, ttlMs = 60 * 60 * 1000): Promise<string> {
-  const [url] = await adminBucket().file(path).getSignedUrl({ action: "read", expires: Date.now() + ttlMs });
-  return url;
+/** A same-origin, expiring link to the poster (served by /api/poster/file). */
+export async function signedReadUrl(id: string, ttlMs = 60 * 60 * 1000): Promise<string> {
+  return signPosterUrl(process.env.POSTER_URL_SECRET ?? "", id, ttlMs);
 }

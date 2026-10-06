@@ -29,14 +29,36 @@ export function checkPosterFile(f: { name: string; type: string; size: number })
   return { ok: true, type };
 }
 
-function randomHex(bytes = 4): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+export interface Upload {
+  /** Resolves with the Drive file id once the upload finishes. */
+  done: Promise<string>;
+  abort(): void;
 }
 
-/**
- * A brand-new object path for every upload: storage rules forbid overwriting, and the server's
- * confirm step only accepts `posters/<uid>/` followed by [A-Za-z0-9._-].
- */
-export function posterPath(uid: string, type: PosterType, now = Date.now(), rand = randomHex()): string {
-  return `posters/${uid}/${now}-${rand}.${POSTER_EXT[type]}`;
+export class UploadError extends Error {
+  code = "upload/failed";
+}
+
+/** PUT the file to a Drive resumable-upload URL, reporting progress as 0-100. */
+export function putFile(url: string, file: File, type: PosterType, onProgress: (pct: number) => void): Upload {
+  const xhr = new XMLHttpRequest();
+  const done = new Promise<string>((resolve, reject) => {
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", type);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      let id = "";
+      try {
+        id = String(JSON.parse(xhr.responseText).id ?? "");
+      } catch {}
+      if (xhr.status >= 200 && xhr.status < 300 && id) resolve(id);
+      else reject(new UploadError(`Upload failed (${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new UploadError("Network error during upload"));
+    xhr.onabort = () => reject(new UploadError("Upload cancelled"));
+    xhr.send(file);
+  });
+  return { done, abort: () => xhr.abort() };
 }

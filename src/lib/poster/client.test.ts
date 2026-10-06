@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { POSTER } from "@/lib/config";
-import { checkPosterFile, posterFileType, posterPath } from "@/lib/poster/client";
-import { confirmPoster, type PosterDeps, type PosterRecord } from "@/lib/poster/service";
+import { checkPosterFile, posterFileType } from "@/lib/poster/client";
 
 const MB = 1024 * 1024;
 
@@ -42,37 +41,5 @@ describe("checkPosterFile", () => {
   });
   it("rejects an empty file", () => {
     expect(checkPosterFile({ name: "e.png", type: "image/png", size: 0 })).toEqual({ ok: false, message: "“e.png” is empty." });
-  });
-});
-
-describe("posterPath", () => {
-  it("builds posters/<uid>/<time>-<random>.<ext>", () => {
-    expect(posterPath("u1", "image/png", 1700000000000, "a1b2c3d4")).toBe("posters/u1/1700000000000-a1b2c3d4.png");
-    expect(posterPath("u1", "image/jpeg", 1, "ff")).toBe("posters/u1/1-ff.jpg");
-    expect(posterPath("u1", "application/pdf", 1, "ff")).toBe("posters/u1/1-ff.pdf");
-  });
-  it("defaults to a fresh name every call, so uploads never overwrite", () => {
-    const seen = new Set(Array.from({ length: 200 }, () => posterPath("u1", "image/png")));
-    expect(seen.size).toBe(200);
-  });
-  it("is accepted by the server's confirm path check", async () => {
-    const files = new Map<string, { contentType: string; size: number }>();
-    const records = new Map<string, PosterRecord>();
-    const deps: PosterDeps = {
-      now: () => 5,
-      window: { openAt: 0, closeAt: 10 },
-      store: {
-        head: async (p) => files.get(p) ?? null,
-        remove: async () => {},
-        get: async (uid) => records.get(uid) ?? null,
-        set: async (uid, r) => void records.set(uid, r),
-      },
-    };
-    for (const type of POSTER.allowedTypes) {
-      const uid = "AbC123xyzDEF456ghiJKL789mno";
-      const path = posterPath(uid, type);
-      files.set(path, { contentType: type, size: 100 });
-      await expect(confirmPoster(uid, path, deps)).resolves.toMatchObject({ path, fileType: type });
-    }
   });
 });

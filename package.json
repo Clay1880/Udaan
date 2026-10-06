@@ -10,7 +10,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-udaan \"vitest run --config vitest.rules.config.ts\""
+    "test:rules": "firebase emulators:exec --only firestore --project demo-udaan \"vitest run --config vitest.rules.config.ts\""
   },
   "keywords": [],
   "author": "",

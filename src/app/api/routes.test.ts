@@ -7,7 +7,8 @@ const h = vi.hoisted(() => ({
   attempts: null as unknown as { store: unknown },
   users: new Map<string, Record<string, unknown>>(),
   posters: new Map<string, unknown>(),
-  files: new Map<string, { contentType: string; size: number }>(),
+  files: new Map<string, { contentType: string; size: number; owner: string }>(),
+  started: [] as unknown[],
   removed: [] as string[],
   signed: [] as { path: string; ttlMs?: number }[],
   tokens: new Map<string, { uid: string; email: string; email_verified: boolean; name?: string }>(),
@@ -34,7 +35,11 @@ vi.mock("@/lib/server/repo", async () => {
       finalize = shared.finalize.bind(shared);
       setAnswer = shared.setAnswer.bind(shared);
     },
-    FirebasePosterStore: class {
+    DrivePosterStore: class {
+      async startUpload(a: unknown) {
+        h.started.push(a);
+        return "https://upload.example/s";
+      }
       async head(p: string) {
         return h.files.get(p) ?? null;
       }
@@ -87,6 +92,7 @@ beforeEach(async () => {
   h.posters.clear();
   h.files.clear();
   h.removed.length = 0;
+  h.started.length = 0;
   h.signed.length = 0;
   h.tokens.clear();
   h.tokens.set("good", { uid: "u1", email: "A@B.c", email_verified: true, name: "Ann" });
@@ -108,6 +114,7 @@ const routes: [string, () => Promise<{ GET?: any; POST?: any }>, string][] = [
   ["quiz/submit", () => import("./quiz/submit/route"), "POST"],
   ["poster GET", () => import("./poster/route"), "GET"],
   ["poster/confirm", () => import("./poster/confirm/route"), "POST"],
+  ["poster/start", () => import("./poster/start/route"), "POST"],
   ["admin/overview", () => import("./admin/overview/route"), "GET"],
 ];
 
@@ -291,31 +298,56 @@ describe("poster", () => {
     expect(b.poster.url).toContain("posters/u1/a.pdf");
   });
 
+  const FILE_A = "1AbCdEfGhIjKlMnOpQrS";
+  const FILE_B = "1ZyXwVuTsRqPoNmLkJiH";
+
   it("confirm 403 without profile", async () => {
     h.users.clear();
     const { POST } = await import("./poster/confirm/route");
-    expect((await call(POST, { headers: AUTH, body: { path: "posters/u1/a.pdf" } })).status).toBe(403);
+    expect((await call(POST, { headers: AUTH, body: { path: FILE_A } })).status).toBe(403);
   });
 
   it("confirm accepts own uploaded file", async () => {
-    h.files.set("posters/u1/a.pdf", { contentType: "application/pdf", size: 100 });
+    h.files.set(FILE_A, { contentType: "application/pdf", size: 100, owner: "u1" });
     const { POST } = await import("./poster/confirm/route");
-    const res = await call(POST, { headers: AUTH, body: { path: "posters/u1/a.pdf" } });
+    const res = await call(POST, { headers: AUTH, body: { path: FILE_A } });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, fileType: "application/pdf" });
-    expect(h.posters.get("u1")).toMatchObject({ path: "posters/u1/a.pdf" });
+    expect(h.posters.get("u1")).toMatchObject({ path: FILE_A });
   });
 
-  it("confirm rejects another uid's path and traversal, leaving storage untouched", async () => {
-    h.files.set("posters/u2/a.pdf", { contentType: "application/pdf", size: 100 });
+  it("confirm rejects another student's file and malformed ids, leaving storage untouched", async () => {
+    h.files.set(FILE_B, { contentType: "application/pdf", size: 100, owner: "u2" });
     const { POST } = await import("./poster/confirm/route");
-    for (const path of ["posters/u2/a.pdf", "posters/u1/../u2/a.pdf", "posters/u1/..", "../posters/u1/a.pdf"]) {
+    for (const path of [FILE_B, "../x", "short"]) {
       const res = await call(POST, { headers: AUTH, body: { path } });
       expect(res.status, path).toBe(400);
     }
     expect(h.removed).toEqual([]);
     expect(h.posters.size).toBe(0);
-    expect(h.files.has("posters/u2/a.pdf")).toBe(true);
+    expect(h.files.has(FILE_B)).toBe(true);
+  });
+
+  it("start 403 without profile", async () => {
+    h.users.clear();
+    const { POST } = await import("./poster/start/route");
+    expect((await call(POST, { headers: AUTH, body: { type: "image/png", size: 100 } })).status).toBe(403);
+  });
+
+  it("start returns an upload url, named from the profile, for the caller's origin", async () => {
+    const { POST } = await import("./poster/start/route");
+    const res = await call(POST, { headers: { ...AUTH, origin: "https://udaan.example" }, body: { type: "image/png", size: 100 } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ uploadUrl: "https://upload.example/s" });
+    expect(h.started).toEqual([{ uid: "u1", name: "FE_IT_12.png", contentType: "image/png", size: 100, origin: "https://udaan.example" }]);
+  });
+
+  it("start rejects bad type, oversize and bad bodies", async () => {
+    const { POST } = await import("./poster/start/route");
+    expect((await call(POST, { headers: AUTH, body: { type: "text/html", size: 100 } })).status).toBe(415);
+    expect((await call(POST, { headers: AUTH, body: { type: "image/png", size: 11 * 1024 * 1024 } })).status).toBe(413);
+    expect((await call(POST, { headers: AUTH, body: { type: "image/png" } })).status).toBe(400);
+    expect(h.started).toEqual([]);
   });
 
   it("confirm 400 on missing path and malformed JSON", async () => {
