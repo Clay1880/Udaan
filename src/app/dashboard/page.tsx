@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { Card, Label, Stage, Tag, type Tone } from "@/components/ui";
-import { Cloud, Jet, Sparkle } from "@/components/art";
+import { Cloud, Jet, Lock, Sparkle } from "@/components/art";
 import { SiteHeader } from "@/components/site-header";
 import { LoadErrorPanel, LoadingPanel } from "@/components/page-state";
 import { BRANCH_LABELS, POSTER, QUIZ } from "@/lib/config";
@@ -48,15 +48,6 @@ function posterStatus(me: Me): Status {
   return { tone: "red", text: "Closed · nothing submitted", cta: null, lockNote: CLOSED };
 }
 
-function LockIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" aria-hidden>
-      <rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="currentColor" />
-      <path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="2" />
-    </svg>
-  );
-}
-
 function CompetitionCard({
   no,
   title,
@@ -92,7 +83,7 @@ function CompetitionCard({
       </ul>
       <Tag tone={status.tone} className="mt-5">
         <span className="inline-flex items-center gap-1.5">
-          {locked && <LockIcon />}
+          {locked && <Lock />}
           {status.text}
         </span>
       </Tag>

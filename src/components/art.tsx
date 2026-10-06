@@ -85,3 +85,39 @@ export function Contrail({ className = "", stroke = "#ffffff" }: { className?: s
     </svg>
   );
 }
+
+/** Painter's palette with a brush, like the one beside the poster's title. */
+export function Palette({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 130 110" className={className} aria-hidden>
+      <path
+        fillRule="evenodd"
+        d="M60 8 C94 5 120 26 117 54 C115 74 98 74 88 69 C78 64 71 72 75 83 C79 96 64 101 51 99 C21 95 3 76 5 51 C7 26 30 10 60 8 Z M86 42 a7 7 0 1 0 0.1 0 Z"
+        fill="#f4b81c"
+        stroke={INK}
+        strokeWidth="4.5"
+        strokeLinejoin="round"
+      />
+      <g stroke={INK} strokeWidth="3">
+        <ellipse cx="33" cy="36" rx="9" ry="7.5" fill="#f27fb5" />
+        <ellipse cx="58" cy="25" rx="8.5" ry="7" fill="#2f5fd0" />
+        <ellipse cx="24" cy="62" rx="8" ry="7" fill="#2f7a22" />
+        <ellipse cx="48" cy="80" rx="8.5" ry="7" fill="#c8141e" />
+      </g>
+      <g strokeLinejoin="round" stroke={INK} strokeWidth="3.5">
+        <path d="M124 6 L128 10 L98 64 L92 60 Z" fill="#2f5fd0" />
+        <path d="M92 60 L98 64 L95 72 C92 79 84 82 80 80 C82 75 85 68 92 60 Z" fill="#ff9933" />
+      </g>
+    </svg>
+  );
+}
+
+/** Small padlock for locked states. Inherits the text colour. */
+export function Lock({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={`shrink-0 ${className}`} aria-hidden>
+      <rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="currentColor" />
+      <path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}

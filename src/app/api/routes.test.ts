@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
   posters: new Map<string, unknown>(),
   files: new Map<string, { contentType: string; size: number }>(),
   removed: [] as string[],
+  signed: [] as { path: string; ttlMs?: number }[],
   tokens: new Map<string, { uid: string; email: string; email_verified: boolean; name?: string }>(),
 }));
 
@@ -50,7 +51,14 @@ vi.mock("@/lib/server/repo", async () => {
     getUser: async (uid: string) => h.users.get(uid) ?? null,
     saveUser: async (u: { uid: string }) => void h.users.set(u.uid, u),
     getPosterRecord: async (uid: string) => h.posters.get(uid) ?? null,
-    signedReadUrl: async (p: string) => `https://signed.example/${p}`,
+    listUsers: async () => [...h.users.values()],
+    listAttemptSummaries: async () =>
+      new Map([...shared.data].map(([uid, a]) => [uid, { status: a.status, score: a.score }])),
+    listPosterRecords: async () => new Map(h.posters as Map<string, PosterRecord>),
+    signedReadUrl: async (p: string, ttlMs?: number) => {
+      h.signed.push({ path: p, ttlMs });
+      return `https://signed.example/${p}?sig=1`;
+    },
   };
 });
 
@@ -79,6 +87,7 @@ beforeEach(async () => {
   h.posters.clear();
   h.files.clear();
   h.removed.length = 0;
+  h.signed.length = 0;
   h.tokens.clear();
   h.tokens.set("good", { uid: "u1", email: "A@B.c", email_verified: true, name: "Ann" });
   mem().data.clear();
@@ -99,6 +108,7 @@ const routes: [string, () => Promise<{ GET?: any; POST?: any }>, string][] = [
   ["quiz/submit", () => import("./quiz/submit/route"), "POST"],
   ["poster GET", () => import("./poster/route"), "GET"],
   ["poster/confirm", () => import("./poster/confirm/route"), "POST"],
+  ["admin/overview", () => import("./admin/overview/route"), "GET"],
 ];
 
 describe("authentication on every route", () => {
@@ -314,5 +324,80 @@ describe("poster", () => {
     const res = await call(POST, { headers: AUTH, raw: "nope" });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Invalid JSON body" });
+  });
+});
+
+describe("GET /api/admin/overview", () => {
+  const ADMIN = { authorization: "Bearer adm" };
+  beforeEach(() => {
+    h.tokens.set("adm", { uid: "a1", email: "Admin@X.Y", email_verified: true });
+    process.env.ADMIN_EMAILS = " someone@else.z , ADMIN@x.y ";
+    h.users.set("u1", { uid: "u1", email: "a@b.c", name: "Zed =cmd", rollNo: "12", year: "FE", branch: "IT", createdAt: 1 });
+    h.users.set("u2", { uid: "u2", email: "b@b.c", name: "Asha", rollNo: "7", year: "TE", branch: "COMP", createdAt: 2 });
+    h.users.set("u3", { uid: "u3", email: "c@b.c", name: "Mira", rollNo: "9", year: "BE", branch: "MECH", createdAt: 3 });
+    mem().data.set("u1", { questions: [], answers: {}, startedAt: 1, status: "submitted", score: 14, submittedAt: 2, source: "fallback" });
+    mem().data.set("u3", { questions: [], answers: {}, startedAt: 1, status: "in_progress", score: null, submittedAt: null, source: "fallback" });
+    h.posters.set("u2", { path: "posters/u2/1-ab.png", fileType: "image/png", size: 9, uploadedAt: 55 });
+  });
+
+  it("403 for a signed-in non-admin, without leaking any rows", async () => {
+    const { GET } = await import("./admin/overview/route");
+    const res = await call(GET, { method: "GET", headers: AUTH });
+    expect(res.status).toBe(403);
+    const body = JSON.stringify(await res.json());
+    expect(body).not.toContain("Asha");
+    expect(h.signed).toEqual([]);
+  });
+
+  it("403 when ADMIN_EMAILS is empty, even for the would-be admin", async () => {
+    process.env.ADMIN_EMAILS = "";
+    const { GET } = await import("./admin/overview/route");
+    expect((await call(GET, { method: "GET", headers: ADMIN })).status).toBe(403);
+  });
+
+  it("401 for an unverified admin email and without a token", async () => {
+    h.tokens.set("adm-unv", { uid: "a2", email: "admin@x.y", email_verified: false });
+    const { GET } = await import("./admin/overview/route");
+    expect((await call(GET, { method: "GET", headers: { authorization: "Bearer adm-unv" } })).status).toBe(401);
+    expect((await call(GET, { method: "GET" })).status).toBe(401);
+  });
+
+  it("returns every registered student sorted by name, matching emails case-insensitively", async () => {
+    const { GET } = await import("./admin/overview/route");
+    const res = await call(GET, { method: "GET", headers: ADMIN });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toContain("no-store");
+    const { rows } = await res.json();
+    expect(rows.map((r: { name: string }) => r.name)).toEqual(["Asha", "Mira", "Zed =cmd"]);
+    expect(rows[0]).toEqual({
+      uid: "u2",
+      name: "Asha",
+      email: "b@b.c",
+      rollNo: "7",
+      year: "TE",
+      branch: "COMP",
+      quiz: null,
+      poster: { uploadedAt: 55, fileType: "image/png", url: "https://signed.example/posters/u2/1-ab.png?sig=1" },
+    });
+    expect(rows[1].quiz).toEqual({ status: "in_progress", score: null });
+    expect(rows[1].poster).toBeNull();
+    expect(rows[2].quiz).toEqual({ status: "submitted", score: 14 });
+  });
+
+  it("only exposes posters through short-lived signed URLs", async () => {
+    const { GET } = await import("./admin/overview/route");
+    const { rows } = await (await call(GET, { method: "GET", headers: ADMIN })).json();
+    expect(h.signed).toHaveLength(1);
+    expect(h.signed[0].path).toBe("posters/u2/1-ab.png");
+    expect(h.signed[0].ttlMs).toBeGreaterThan(0);
+    expect(h.signed[0].ttlMs).toBeLessThanOrEqual(60 * 60 * 1000);
+    // no raw storage path or record internals besides the signed url
+    expect(Object.keys(rows[0].poster).sort()).toEqual(["fileType", "uploadedAt", "url"]);
+  });
+
+  it("is read-only: only GET is exported", async () => {
+    const m: Record<string, unknown> = await import("./admin/overview/route");
+    expect(m.GET).toBeTypeOf("function");
+    for (const verb of ["POST", "PUT", "PATCH", "DELETE"]) expect(m[verb]).toBeUndefined();
   });
 });
