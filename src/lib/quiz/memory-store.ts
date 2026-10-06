@@ -10,10 +10,19 @@ export class MemoryAttemptStore implements AttemptStore {
     if (this.data.has(uid)) throw new AlreadyExistsError();
     this.data.set(uid, structuredClone(a));
   }
-  async update(uid: string, patch: Partial<AttemptRecord>) {
-    this.data.set(uid, { ...this.data.get(uid)!, ...patch });
+  async finalize(uid: string, compute: (rec: AttemptRecord) => Partial<AttemptRecord>) {
+    const cur = this.data.get(uid);
+    if (!cur) return null;
+    if (cur.status !== "in_progress") return structuredClone(cur);
+    const next = { ...cur, ...compute(structuredClone(cur)) };
+    this.data.set(uid, next);
+    return structuredClone(next);
   }
-  async setAnswer(uid: string, index: number, choice: number) {
-    this.data.get(uid)!.answers[String(index)] = choice;
+  async setAnswer(uid: string, index: number, choice: number, opts: { now: number; notAfter: number }) {
+    const cur = this.data.get(uid);
+    if (!cur) return "missing" as const;
+    if (cur.status !== "in_progress" || opts.now > opts.notAfter) return "closed" as const;
+    cur.answers[String(index)] = choice;
+    return "ok" as const;
   }
 }

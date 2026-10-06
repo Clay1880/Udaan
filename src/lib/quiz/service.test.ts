@@ -193,3 +193,44 @@ describe("boundaries and secrecy", () => {
     check(await getAttemptView("u1", deps));
   });
 });
+
+describe("store atomicity contract", () => {
+  const patchFor = (rec: { answers: Record<string, number> }, at: number) => ({
+    status: "submitted" as const,
+    score: Object.keys(rec.answers).length,
+    submittedAt: at,
+  });
+  it("first finalize wins; a second finalize with different answers is a no-op", async () => {
+    await startAttempt("u1", deps);
+    await saveAnswer("u1", 0, 0, deps);
+    const first = await store.finalize("u1", (r) => patchFor(r, 1));
+    expect(first!.score).toBe(1);
+    store.data.get("u1")!.answers["1"] = 1; // simulate a stale/late answer
+    const second = await store.finalize("u1", (r) => patchFor(r, 2));
+    expect(second!.score).toBe(1);
+    expect(second!.submittedAt).toBe(1);
+    expect(store.data.get("u1")!.score).toBe(1);
+  });
+  it("score is computed from the current answers inside finalize", async () => {
+    await startAttempt("u1", deps);
+    await saveAnswer("u1", 0, 0, deps);
+    await saveAnswer("u1", 1, 1, deps);
+    expect((await submitAttempt("u1", deps)).score).toBe(2);
+  });
+  it("setAnswer after finalize is refused and does not change the score", async () => {
+    await startAttempt("u1", deps);
+    await saveAnswer("u1", 0, 0, deps);
+    await submitAttempt("u1", deps);
+    const res = await store.setAnswer("u1", 1, 1, { now: clock, notAfter: clock + 100_000 });
+    expect(res).toBe("closed");
+    expect(store.data.get("u1")!.answers).toEqual({ "0": 0 });
+    expect(store.data.get("u1")!.score).toBe(1);
+  });
+  it("setAnswer after deadline+grace is refused by the store itself", async () => {
+    await startAttempt("u1", deps);
+    expect(await store.setAnswer("u1", 0, 0, { now: 1001, notAfter: 1000 })).toBe("closed");
+    expect(await store.setAnswer("u1", 0, 0, { now: 1000, notAfter: 1000 })).toBe("ok");
+    expect(await store.setAnswer("nobody", 0, 0, { now: 0, notAfter: 1 })).toBe("missing");
+    expect(store.data.get("u1")!.answers).toEqual({ "0": 0 });
+  });
+});

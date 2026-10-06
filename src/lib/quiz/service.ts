@@ -16,11 +16,28 @@ export interface AttemptRecord {
 
 export class AlreadyExistsError extends Error {}
 
+export type SetAnswerResult = "ok" | "closed" | "missing";
+
+/**
+ * Store contract (a real store, e.g. Firestore, must implement these atomically, in a transaction):
+ * - create: fails with AlreadyExistsError if the attempt exists (one attempt per uid).
+ * - finalize: read the record, and ONLY if status is still "in_progress" call `compute(record)` on that
+ *   freshly read record (so the score uses its CURRENT answers) and write the returned patch. If the
+ *   record is already submitted, write nothing and return it unchanged (first finalize wins).
+ *   Returns null if the attempt does not exist.
+ * - setAnswer: in one transaction, write the answer only if status === "in_progress" AND
+ *   opts.now <= opts.notAfter; otherwise write nothing and return "closed". "missing" if no attempt.
+ */
 export interface AttemptStore {
   get(uid: string): Promise<AttemptRecord | null>;
   create(uid: string, a: AttemptRecord): Promise<void>;
-  update(uid: string, patch: Partial<AttemptRecord>): Promise<void>;
-  setAnswer(uid: string, index: number, choice: number): Promise<void>;
+  finalize(uid: string, compute: (rec: AttemptRecord) => Partial<AttemptRecord>): Promise<AttemptRecord | null>;
+  setAnswer(
+    uid: string,
+    index: number,
+    choice: number,
+    opts: { now: number; notAfter: number },
+  ): Promise<SetAnswerResult>;
 }
 
 type QuizCode = "WINDOW_NOT_OPEN" | "WINDOW_CLOSED" | "NO_ATTEMPT" | "NOT_IN_PROGRESS" | "BAD_INPUT";
@@ -71,13 +88,12 @@ function toView(a: AttemptRecord, now: number): AttemptView {
 }
 
 async function finalize(uid: string, a: AttemptRecord, deps: QuizDeps): Promise<AttemptRecord> {
-  const patch = {
+  const done = await deps.store.finalize(uid, (rec) => ({
     status: "submitted" as const,
-    score: scoreAttempt(a.questions, a.answers),
-    submittedAt: Math.min(deps.now(), deadlineOf(a.startedAt)),
-  };
-  await deps.store.update(uid, patch);
-  return { ...a, ...patch };
+    score: scoreAttempt(rec.questions, rec.answers),
+    submittedAt: Math.min(deps.now(), deadlineOf(rec.startedAt)),
+  }));
+  return done ?? a;
 }
 
 async function settle(uid: string, a: AttemptRecord, deps: QuizDeps): Promise<AttemptRecord> {
@@ -126,9 +142,15 @@ export async function saveAnswer(uid: string, index: number, choice: number, dep
   if (!Number.isInteger(choice) || choice < 0 || choice > 3) throw new QuizError("BAD_INPUT");
   const found = await deps.store.get(uid);
   if (!found) throw new QuizError("NO_ATTEMPT");
-  const a = await settle(uid, found, deps);
-  if (a.status !== "in_progress") throw new QuizError("NOT_IN_PROGRESS");
-  await deps.store.setAnswer(uid, index, choice);
+  const res = await deps.store.setAnswer(uid, index, choice, {
+    now: deps.now(),
+    notAfter: deadlineOf(found.startedAt) + QUIZ.graceMs,
+  });
+  if (res === "missing") throw new QuizError("NO_ATTEMPT");
+  if (res === "closed") {
+    await finalize(uid, found, deps); // idempotent: scores an expired attempt, no-op if already submitted
+    throw new QuizError("NOT_IN_PROGRESS");
+  }
 }
 
 export async function submitAttempt(uid: string, deps: QuizDeps): Promise<AttemptView> {
