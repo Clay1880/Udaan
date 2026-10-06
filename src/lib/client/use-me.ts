@@ -38,7 +38,7 @@ export function useRequireMe(needProfile: boolean) {
   }, [uid]);
 
   const call = useCallback(
-    async <T,>(path: string, opts: { method?: string; body?: unknown } = {}) =>
+    async <T,>(path: string, opts: { method?: string; body?: unknown; timeoutMs?: number } = {}) =>
       api<T>(path, { ...opts, token: await getToken() }),
     [getToken],
   );

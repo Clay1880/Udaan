@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, api } from "@/lib/client/api";
+import { ApiError, QUIZ_START_TIMEOUT_MS, api } from "@/lib/client/api";
 import { SaveQueue } from "@/components/quiz/save-queue";
 
 afterEach(() => {
@@ -22,6 +22,20 @@ describe("api timeout", () => {
     const e = await p;
     expect(e).toBeInstanceOf(ApiError);
     expect(e).toMatchObject({ status: 0, code: "TIMEOUT" });
+  });
+  it("a long timeoutMs is not aborted at 8s but is at the limit", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", stalledFetch());
+    let settled = false;
+    const p = api("/api/quiz/start", { method: "POST", token: "t", timeoutMs: 55000 }).catch((e) => ((settled = true), e));
+    await vi.advanceTimersByTimeAsync(8100);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(47000);
+    expect(await p).toMatchObject({ status: 0, code: "TIMEOUT" });
+  });
+  it("quiz start timeout fits Gemini retries yet stays under the 60s route limit", () => {
+    expect(QUIZ_START_TIMEOUT_MS).toBeGreaterThan(25000);
+    expect(QUIZ_START_TIMEOUT_MS).toBeLessThan(60000);
   });
   it("does not time out a fast response", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: 1 }), { status: 200 })));

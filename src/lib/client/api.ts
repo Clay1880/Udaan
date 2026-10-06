@@ -6,13 +6,15 @@ export class ApiError extends Error {
 
 /** A stalled request must not hang the UI (e.g. the quiz finish waiting on a save); callers treat it as a network failure. */
 export const API_TIMEOUT_MS = 8000;
+/** Quiz start generates questions (Gemini retries, route maxDuration 60s): allow nearly the full server budget. */
+export const QUIZ_START_TIMEOUT_MS = 55000;
 
 export async function api<T>(
   path: string,
-  { method = "GET", body, token }: { method?: string; body?: unknown; token: string },
+  { method = "GET", body, token, timeoutMs = API_TIMEOUT_MS }: { method?: string; body?: unknown; token: string; timeoutMs?: number },
 ): Promise<T> {
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), API_TIMEOUT_MS);
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
     const res = await fetch(path, {
       method,

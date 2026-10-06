@@ -7,7 +7,7 @@ import { LoadErrorPanel, LoadingPanel } from "@/components/page-state";
 import { Runner } from "@/components/quiz/runner";
 import { SiteHeader } from "@/components/site-header";
 import { QUIZ } from "@/lib/config";
-import { ApiError } from "@/lib/client/api";
+import { ApiError, QUIZ_START_TIMEOUT_MS } from "@/lib/client/api";
 import { windowMessage } from "@/lib/client/format";
 import { useWindowBoundary } from "@/lib/client/use-window-boundary";
 import { useRequireMe } from "@/lib/client/use-me";
@@ -70,7 +70,7 @@ export default function QuizPage() {
     setPhase("starting");
     setError("");
     try {
-      const v = await call<AttemptView>("/api/quiz/start", { method: "POST" });
+      const v = await call<AttemptView>("/api/quiz/start", { method: "POST", timeoutMs: QUIZ_START_TIMEOUT_MS });
       setView(v);
       setPhase(v.status === "submitted" ? "done" : "run");
       void refresh().catch(() => {});
