@@ -8,7 +8,9 @@ import { FirebasePosterStore, FirestoreAttemptStore } from "./repo";
 
 // Server-only: reads the Gemini key from a non-NEXT_PUBLIC env var at request time.
 export function quizDeps(): QuizDeps {
-  const callModel = geminiCallModel(process.env.GEMINI_API_KEY ?? "", process.env.GEMINI_MODEL ?? "gemini-2.5-flash");
+  // Built lazily: only generation needs the Gemini client, so other routes work without a key.
+  const callModel = (prompt: string) =>
+    geminiCallModel(process.env.GEMINI_API_KEY ?? "", process.env.GEMINI_MODEL ?? "gemini-2.5-flash")(prompt);
   return {
     store: new FirestoreAttemptStore(),
     now: Date.now,

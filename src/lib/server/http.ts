@@ -25,6 +25,15 @@ const POSTER_STATUS: Record<PosterError["code"], number> = {
   TOO_LARGE: 413,
 };
 
+/** Parse a JSON request body; malformed JSON becomes a 400 rather than an unmapped 500. */
+export async function readJson(req: Request): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch {
+    throw new HttpError(400, "Invalid JSON body");
+  }
+}
+
 /** Extra mappers for other error types. Return a Response to claim the error, or null to pass. */
 export type ErrorMapper = (e: unknown) => Response | null;
 const extraMappers: ErrorMapper[] = [];
