@@ -9,6 +9,7 @@ import { SiteHeader } from "@/components/site-header";
 import { QUIZ } from "@/lib/config";
 import { ApiError } from "@/lib/client/api";
 import { windowMessage } from "@/lib/client/format";
+import { useWindowBoundary } from "@/lib/client/use-window-boundary";
 import { useRequireMe } from "@/lib/client/use-me";
 import type { AttemptView } from "@/lib/quiz/service";
 
@@ -30,6 +31,8 @@ export default function QuizPage() {
   const [view, setView] = useState<AttemptView | null>(null);
   const [error, setError] = useState("");
   const starting = useRef(false);
+  // Unlock (or lock) at the window boundary without a reload.
+  useWindowBoundary(me, refresh);
 
   const load = useCallback(async () => {
     setPhase("loading");

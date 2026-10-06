@@ -8,6 +8,7 @@ import { LoadErrorPanel, LoadingPanel } from "@/components/page-state";
 import { SiteHeader } from "@/components/site-header";
 import { ApiError } from "@/lib/client/api";
 import { formatIst, windowMessage } from "@/lib/client/format";
+import { useWindowBoundary } from "@/lib/client/use-window-boundary";
 import { useRequireMe } from "@/lib/client/use-me";
 import { POSTER } from "@/lib/config";
 import { storage } from "@/lib/firebase/client";
@@ -106,16 +107,7 @@ export default function PosterPage() {
   }, [load]);
 
   // Flip between locked / open / closed when the window boundary passes while the page is open.
-  const state = me?.window.state;
-  const boundary = me ? (state === "before" ? me.window.openAt : state === "open" ? me.window.closeAt : null) : null;
-  const serverNow = me?.serverNow;
-  useEffect(() => {
-    if (boundary === null || serverNow === undefined) return;
-    const wait = boundary - serverNow + 1000;
-    if (wait > 2 ** 31 - 1) return;
-    const t = setTimeout(() => void refresh().catch(() => {}), Math.max(wait, 0));
-    return () => clearTimeout(t);
-  }, [boundary, serverNow, refresh]);
+  useWindowBoundary(me, refresh);
 
   useEffect(() => () => {
     if (picked?.preview) URL.revokeObjectURL(picked.preview);
