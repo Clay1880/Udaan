@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/client/api";
 import { QUIZ } from "@/lib/config";
 import type { AttemptView } from "@/lib/quiz/service";
 import { clockOffset, formatClock, remainingAt, spokenTime, timerTone } from "./format-time";
+import { SaveQueue, type ErrorKind, type FlushResult } from "./save-queue";
 
 type Call = <T>(path: string, opts?: { method?: string; body?: unknown }) => Promise<T>;
 type Sync = "synced" | "saving" | "offline";
@@ -19,6 +20,12 @@ const TIMER = {
   warn: { box: "bg-sun text-ink", word: "Under 3 min" },
   critical: { box: "bg-signal text-white pulse", word: "Last minute" },
 };
+/** 409: the server has closed the attempt (time ran out there). 400/404: retrying can't fix it. */
+function classifySaveError(e: unknown): ErrorKind {
+  if (e instanceof ApiError && e.status === 409) return "closed";
+  if (e instanceof ApiError && (e.status === 400 || e.status === 404)) return "drop";
+  return "retry";
+}
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
 export function Runner({ initial, call, onDone }: { initial: AttemptView; call: Call; onDone: (v: AttemptView) => void }) {
@@ -33,8 +40,17 @@ export function Runner({ initial, call, onDone }: { initial: AttemptView; call: 
   const [sync, setSync] = useState<Sync>("synced");
   const [serverClosed, setServerClosed] = useState(false);
   const [spoken, setSpoken] = useState("");
-  const pending = useRef<Record<string, number>>({});
-  const flushing = useRef(false);
+  const callRef = useRef(call);
+  callRef.current = call;
+  const queueRef = useRef<SaveQueue | null>(null);
+  const queue = useCallback(
+    () =>
+      (queueRef.current ??= new SaveQueue(
+        (index, choice) => callRef.current<unknown>("/api/quiz/answer", { method: "POST", body: { index, choice } }).then(() => {}),
+        classifySaveError,
+      )),
+    [],
+  );
   const busyFinishing = useRef(false);
   const done = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -54,39 +70,14 @@ export function Runner({ initial, call, onDone }: { initial: AttemptView; call: 
     return () => clearInterval(t);
   }, []);
 
-  /** Sends queued answers one by one. Resolves true when nothing is left unsaved. */
-  const flush = useCallback(async (): Promise<boolean> => {
-    if (flushing.current) return false;
-    flushing.current = true;
-    try {
-      while (Object.keys(pending.current).length) {
-        for (const [k, v] of Object.entries(pending.current)) {
-          try {
-            await call("/api/quiz/answer", { method: "POST", body: { index: Number(k), choice: v } });
-            if (pending.current[k] === v) delete pending.current[k];
-          } catch (e) {
-            if (e instanceof ApiError && e.status === 409) {
-              // Server says the attempt is over (time ran out there). Stop saving and show the result.
-              pending.current = {};
-              setServerClosed(true);
-              break;
-            }
-            if (e instanceof ApiError && (e.status === 400 || e.status === 404)) {
-              // Retrying cannot fix these; drop this one rather than loop forever.
-              if (pending.current[k] === v) delete pending.current[k];
-              continue;
-            }
-            setSync("offline");
-            return false;
-          }
-        }
-      }
-      setSync("synced");
-      return true;
-    } finally {
-      flushing.current = false;
-    }
-  }, [call]);
+  /** Latest result of a flush, reflected in the save indicator (and a 409 ends the attempt). */
+  const report = useCallback((r: FlushResult) => {
+    if (r === "closed") setServerClosed(true);
+    setSync(r === "failed" ? "offline" : queue().size ? "saving" : "synced");
+    return r;
+  }, [queue]);
+
+  const flush = useCallback(() => queue().flush().then(report), [queue, report]);
 
   const finish = useCallback(async () => {
     if (busyFinishing.current || done.current) return;
@@ -94,12 +85,11 @@ export function Runner({ initial, call, onDone }: { initial: AttemptView; call: 
     setFinishing(true);
     setFinishError("");
     try {
-      const saved = await flush();
+      // Wait for any save already on the wire, then keep flushing until the queue is empty.
+      const saved = report(await queue().drain());
       // Never hand in while a pick is unsaved, unless the server's deadline (plus grace) has passed.
       const graceLeft = initial.deadlineAt + QUIZ.graceMs - (Date.now() + offset.current);
-      if (!saved && Object.keys(pending.current).length && graceLeft > 0) {
-        throw new Error("Some answers are not saved yet.");
-      }
+      if (saved === "failed" && graceLeft > 0) throw new Error("Some answers are not saved yet.");
       const v = await call<AttemptView>("/api/quiz/submit", { method: "POST" });
       done.current = true;
       onDone(v);
@@ -113,7 +103,7 @@ export function Runner({ initial, call, onDone }: { initial: AttemptView; call: 
     } finally {
       busyFinishing.current = false;
     }
-  }, [call, flush, onDone, initial.deadlineAt]);
+  }, [call, queue, report, onDone, initial.deadlineAt]);
 
   // Time up (here or on the server): hand in. If that fails, the retry loop below tries again.
   useEffect(() => {
@@ -123,7 +113,7 @@ export function Runner({ initial, call, onDone }: { initial: AttemptView; call: 
   useEffect(() => {
     const t = setInterval(() => {
       if (done.current) return;
-      if (Object.keys(pending.current).length) void flush();
+      if (queue().size) void flush();
       if (timeUp && !busyFinishing.current) void finish();
     }, RETRY_MS);
     const online = () => void flush();
@@ -132,16 +122,16 @@ export function Runner({ initial, call, onDone }: { initial: AttemptView; call: 
       clearInterval(t);
       window.removeEventListener("online", online);
     };
-  }, [flush, finish, timeUp]);
+  }, [flush, finish, timeUp, queue]);
 
   // Warn before closing the tab with an unsaved pick (the timer keeps running regardless).
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (Object.keys(pending.current).length) e.preventDefault();
+      if (queue().size) e.preventDefault();
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, []);
+  }, [queue]);
 
   // Read the time out at a few milestones only.
   const milestone = MILESTONES.filter((m) => remaining <= m * 1000).pop() ?? null;
@@ -161,7 +151,7 @@ export function Runner({ initial, call, onDone }: { initial: AttemptView; call: 
   function pick(choice: number) {
     if (timeUp) return;
     setAnswers((a) => ({ ...a, [i]: choice }));
-    pending.current[String(i)] = choice;
+    queue().set(i, choice);
     setSync("saving");
     void flush();
   }

@@ -45,6 +45,17 @@ export default function QuizPage() {
     }
   }, [call]);
 
+  // Stable, so the runner's finish/retry timers aren't rebuilt on every render.
+  const onDone = useCallback(
+    (v: AttemptView) => {
+      setView(v);
+      setPhase("done");
+      window.scrollTo({ top: 0 });
+      void refresh().catch(() => {});
+    },
+    [refresh],
+  );
+
   const hasMe = me !== null;
   useEffect(() => {
     if (hasMe) void load();
@@ -84,16 +95,7 @@ export default function QuizPage() {
       <>
         <SiteHeader isAdmin={me.isAdmin} />
         <h1 className="sr-only">Air Force Quiz</h1>
-        <Runner
-          initial={view}
-          call={call}
-          onDone={(v) => {
-            setView(v);
-            setPhase("done");
-            window.scrollTo({ top: 0 });
-            void refresh().catch(() => {});
-          }}
-        />
+        <Runner initial={view} call={call} onDone={onDone} />
       </>
     );
   }
