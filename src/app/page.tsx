@@ -41,7 +41,7 @@ export default function Landing() {
             <div className="relative -mt-[0.62em] inline-block text-[clamp(3.5rem,16.5vw,8.5rem)]">
               <h1 className="bubble text-sun">UDAAN</h1>
               <Sparkle className="absolute -left-[0.18em] -top-[0.22em] h-[0.4em] w-[0.4em]" />
-              <Sparkle className="absolute -right-[0.3em] top-[0.05em] h-[0.3em] w-[0.3em]" />
+              <Sparkle className="absolute -right-[0.14em] -top-[0.12em] h-[0.3em] w-[0.3em]" />
             </div>
 
             <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-center lg:gap-6">

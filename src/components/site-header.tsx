@@ -9,7 +9,7 @@ export function SiteHeader({ isAdmin = false }: { isAdmin?: boolean }) {
   return (
     <header className="border-b-[3px] border-ink bg-paper/90 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
-        <Link href={user ? "/dashboard" : "/"} className="bubble text-3xl text-sun" aria-label="Udaan home">
+        <Link href={user ? "/dashboard" : "/"} className="bubble inline-flex min-h-12 items-center text-3xl text-sun" aria-label="Udaan home">
           UDAAN
         </Link>
         <div className="flex items-center gap-3">

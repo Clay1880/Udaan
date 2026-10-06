@@ -52,13 +52,13 @@ export function Button({
   return (
     <button
       {...props}
-      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-[3px] border-ink px-6 text-lg font-semibold shadow-[4px_4px_0_var(--color-ink)] transition-transform hover:-translate-y-0.5 active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-[3px] border-ink px-6 text-lg font-semibold shadow-[4px_4px_0_var(--color-ink)] transition-transform hover:-translate-y-0.5 active:translate-x-[3px] active:translate-y-[3px] focus-visible:shadow-[0_0_0_3px_#fff,4px_4px_0_var(--color-ink)] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${variants[variant]} ${className}`}
     />
   );
 }
 
 export const inputClass =
-  "min-h-12 w-full rounded-xl border-[3px] border-ink bg-white px-4 text-base text-ink outline-none placeholder:text-ink/40 focus:bg-sun/20 focus:shadow-[4px_4px_0_var(--color-ink)]";
+  "min-h-12 w-full rounded-xl border-[3px] border-ink bg-white px-4 text-base text-ink placeholder:text-ink/40 focus:bg-sun/20 focus:shadow-[0_0_0_3px_#fff,4px_4px_0_var(--color-ink)]";
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (

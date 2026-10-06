@@ -23,6 +23,16 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  /* Stickers poke past edges on purpose; never let that become sideways scroll on narrow phones. */
+  overflow-x: clip;
+}
+
+/* Keyboard focus: white halo inside an ink ring, so it reads on paper, white cards and the
+   blue panel alike. :where() keeps specificity at zero so components can extend the shadow. */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid var(--color-ink);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px #fff;
 }
 
 /* Paper grain, like the printed poster. */
