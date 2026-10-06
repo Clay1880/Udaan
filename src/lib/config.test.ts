@@ -19,6 +19,20 @@ describe("getWindow", () => {
   });
 });
 
+describe("getWindow validation (fail closed)", () => {
+  it("throws on an unparsable open override", () => {
+    expect(() => getWindow({ WINDOW_OPEN_ISO: "2026-10-08 00:00 IST" })).toThrow(/WINDOW_OPEN_ISO/);
+  });
+  it("throws on an unparsable close override", () => {
+    expect(() => getWindow({ WINDOW_CLOSE_ISO: "garbage" })).toThrow(/WINDOW_CLOSE_ISO/);
+  });
+  it("throws when open is not before close", () => {
+    expect(() =>
+      getWindow({ WINDOW_OPEN_ISO: "2026-10-09T00:00:00Z", WINDOW_CLOSE_ISO: "2026-10-09T00:00:00Z" }),
+    ).toThrow(/before/);
+  });
+});
+
 describe("admin allowlist", () => {
   const env = { ADMIN_EMAILS: " Boss@Gmail.com , second@gmail.com " };
   it("parses and lowercases", () => {

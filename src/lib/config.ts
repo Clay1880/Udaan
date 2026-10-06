@@ -30,10 +30,12 @@ const DEFAULT_CLOSE = "2026-10-09T18:30:00Z";
 type Env = Record<string, string | undefined>;
 
 export function getWindow(env: Env = process.env) {
-  return {
-    openAt: Date.parse(env.WINDOW_OPEN_ISO || DEFAULT_OPEN),
-    closeAt: Date.parse(env.WINDOW_CLOSE_ISO || DEFAULT_CLOSE),
-  };
+  const openAt = Date.parse(env.WINDOW_OPEN_ISO || DEFAULT_OPEN);
+  const closeAt = Date.parse(env.WINDOW_CLOSE_ISO || DEFAULT_CLOSE);
+  if (!Number.isFinite(openAt)) throw new Error("Invalid WINDOW_OPEN_ISO: not a parsable date");
+  if (!Number.isFinite(closeAt)) throw new Error("Invalid WINDOW_CLOSE_ISO: not a parsable date");
+  if (openAt >= closeAt) throw new Error("Invalid window: WINDOW_OPEN_ISO must be before WINDOW_CLOSE_ISO");
+  return { openAt, closeAt };
 }
 
 export function getAdminEmails(env: Env = process.env): string[] {
