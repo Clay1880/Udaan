@@ -2,6 +2,8 @@ import { cleanQuestions } from "./validate";
 import { shuffle } from "./random";
 import type { Question } from "./types";
 
+export const DEFAULT_TIMEOUT_MS = 10000;
+
 export const TOPICS = [
   "History and wars of the Indian Air Force",
   "Aircraft and helicopters in IAF service",
@@ -58,7 +60,7 @@ export async function generateQuestions(
     try {
       const topics = shuffle(TOPICS, random).slice(0, 5);
       const prompt = buildPrompt(count + 3, topics, Math.floor(random() * 1e9));
-      const text = await withTimeout(d.callModel(prompt), d.timeoutMs ?? 20000);
+      const text = await withTimeout(d.callModel(prompt), d.timeoutMs ?? DEFAULT_TIMEOUT_MS);
       return { questions: cleanQuestions(JSON.parse(stripFences(text)), count), source: "gemini" };
     } catch (e) {
       console.error(`question generation attempt ${n + 1} failed:`, e instanceof Error ? e.message : e);

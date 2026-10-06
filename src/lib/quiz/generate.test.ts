@@ -55,4 +55,21 @@ describe("generateQuestions", () => {
     const r = await generateQuestions(20, { ...base, callModel: async () => "[]" });
     expect(new Set(r.questions.map((x) => x.text)).size).toBe(20);
   });
+  it("abandons a hanging model after the 10s default timeout per attempt", async () => {
+    vi.useFakeTimers();
+    try {
+      const callModel = vi.fn(() => new Promise<string>(() => {}));
+      const p = generateQuestions(20, { bank: FALLBACK_BANK, callModel });
+      await vi.advanceTimersByTimeAsync(9999);
+      expect(callModel).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(callModel).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(10000);
+      const r = await p;
+      expect(r.source).toBe("fallback");
+      expect(r.questions).toHaveLength(20);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
