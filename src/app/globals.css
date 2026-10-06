@@ -1,1 +1,106 @@
 @import "tailwindcss";
+
+@theme {
+  --color-paper: #efece4;
+  --color-paper-deep: #e2ddd0;
+  --color-ink: #1b1b1f;
+  --color-blue: #2f5fd0;
+  --color-blue-deep: #2349a6;
+  --color-sun: #f4b81c;
+  --color-signal: #c8141e;
+  --color-bubble: #f27fb5;
+  --color-leaf: #3f8f2f;
+  --color-saffron: #ff9933;
+  --color-flag-green: #138808;
+  --font-display: var(--font-chango), "Arial Black", sans-serif;
+  --font-sans: var(--font-fredoka), system-ui, sans-serif;
+}
+
+html { background: var(--color-paper); }
+body {
+  min-height: 100dvh;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Paper grain, like the printed poster. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.55;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .42 0 0 0 0 .36 0 0 0 .35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The blue gridded panel from the poster. */
+.grid-panel {
+  background-color: var(--color-blue);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+  background-size: 44px 44px;
+  border: 3px solid var(--color-ink);
+  box-shadow: 6px 6px 0 var(--color-ink);
+}
+
+/* Sticker card: dark outline, hard offset shadow. */
+.sticker {
+  border: 3px solid var(--color-ink);
+  border-radius: 18px;
+  box-shadow: 5px 5px 0 var(--color-ink);
+}
+
+/* Chunky outlined bubble lettering. Set the fill with a text-* colour class. */
+.bubble {
+  font-family: var(--font-display);
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.16em var(--color-ink);
+  text-shadow: 0.05em 0.07em 0 var(--color-ink);
+}
+
+/* Extruded variant for the big date numerals: a stacked ink shadow reads as a 3D sticker. */
+.bubble-deep {
+  text-shadow:
+    0.02em 0.02em 0 var(--color-ink),
+    0.04em 0.04em 0 var(--color-ink),
+    0.06em 0.06em 0 var(--color-ink),
+    0.08em 0.08em 0 var(--color-ink);
+}
+
+/* Small cream lettering with an ink edge, for captions sitting on the blue panel. */
+.ink-edge {
+  color: var(--color-paper);
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.14em var(--color-ink);
+  text-shadow: 0.06em 0.08em 0 var(--color-ink);
+}
+
+/* Pink paint dots scattered on the poster. */
+.dot {
+  position: absolute;
+  border-radius: 9999px;
+  background: var(--color-bubble);
+  border: 3px solid var(--color-ink);
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-up { animation: fade-up 0.5s ease-out both; }
+
+@keyframes tick-pulse {
+  50% { transform: scale(1.06); }
+}
+.pulse { animation: tick-pulse 1s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up, .pulse { animation: none; }
+}
