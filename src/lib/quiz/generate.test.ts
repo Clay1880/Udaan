@@ -73,3 +73,40 @@ describe("generateQuestions", () => {
     }
   });
 });
+
+describe("option shuffling", () => {
+  const seeded = (seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+  const fail = async () => {
+    throw new Error("down");
+  };
+
+  for (const source of ["fallback", "gemini"] as const) {
+    it(`${source}: keeps the correct text, permutes options, spreads answer positions`, async () => {
+      const callModel = source === "gemini" ? async () => json(23) : fail;
+      const seen = new Set<number>();
+      const counts = [0, 0, 0, 0];
+      for (let s = 1; s <= 40; s++) {
+        const r = await generateQuestions(20, { ...base, attempts: 1, callModel, random: seeded(s) });
+        expect(r.source).toBe(source);
+        for (const out of r.questions) {
+          const orig =
+            source === "fallback"
+              ? FALLBACK_BANK.find((b) => b.text === out.text)!
+              : (() => {
+                  const i = Number(out.text.match(/question (\d+)/)![1]);
+                  return q(i);
+                })();
+          expect(out.options[out.answer]).toBe(orig.options[orig.answer]);
+          expect([...out.options].sort()).toEqual([...orig.options].sort());
+          seen.add(out.answer);
+          counts[out.answer]++;
+        }
+      }
+      expect([...seen].sort()).toEqual([0, 1, 2, 3]);
+      for (const c of counts) expect(c).toBeGreaterThan(800 * 0.15);
+    });
+  }
+});

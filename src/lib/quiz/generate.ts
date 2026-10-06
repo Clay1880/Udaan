@@ -50,6 +50,12 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
+/** Shuffles a question's options and remaps `answer` so it still points at the same option text. */
+function shuffleOptions(q: Question, random: () => number): Question {
+  const order = shuffle(q.options.map((_, i) => i), random);
+  return { ...q, options: order.map((i) => q.options[i]), answer: order.indexOf(q.answer) };
+}
+
 export async function generateQuestions(
   count: number,
   d: GenerateDeps,
@@ -61,11 +67,11 @@ export async function generateQuestions(
       const topics = shuffle(TOPICS, random).slice(0, 5);
       const prompt = buildPrompt(count + 3, topics, Math.floor(random() * 1e9));
       const text = await withTimeout(d.callModel(prompt), d.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-      return { questions: cleanQuestions(JSON.parse(stripFences(text)), count), source: "gemini" };
+      return { questions: cleanQuestions(JSON.parse(stripFences(text)), count).map((x) => shuffleOptions(x, random)), source: "gemini" };
     } catch (e) {
       console.error(`question generation attempt ${n + 1} failed:`, e instanceof Error ? e.message : e);
     }
   }
   if (d.bank.length < count) throw new Error("fallback bank smaller than question count");
-  return { questions: shuffle(d.bank, random).slice(0, count), source: "fallback" };
+  return { questions: shuffle(d.bank, random).slice(0, count).map((x) => shuffleOptions(x, random)), source: "fallback" };
 }
