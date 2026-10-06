@@ -1,5 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { adminDb } from "@/lib/firebase/admin";
+import { adminBucket, adminDb } from "@/lib/firebase/admin";
+import type { PosterStore } from "@/lib/poster/service";
 import {
   AlreadyExistsError,
   type AttemptRecord,
@@ -109,4 +110,26 @@ export async function listAttemptSummaries(): Promise<Map<string, { status: stri
 export async function listPosterRecords(): Promise<Map<string, PosterDoc>> {
   const snap = await col("posters").get();
   return new Map(snap.docs.map((d) => [d.id, d.data() as PosterDoc]));
+}
+
+export class FirebasePosterStore implements PosterStore {
+  async head(path: string) {
+    try {
+      const [meta] = await adminBucket().file(path).getMetadata();
+      return { contentType: String(meta.contentType ?? ""), size: Number(meta.size ?? 0) };
+    } catch (e) {
+      if ((e as { code?: number }).code === 404) return null;
+      throw e;
+    }
+  }
+  async remove(path: string) {
+    await adminBucket().file(path).delete({ ignoreNotFound: true });
+  }
+  get = getPosterRecord;
+  set = setPosterRecord;
+}
+
+export async function signedReadUrl(path: string, ttlMs = 60 * 60 * 1000): Promise<string> {
+  const [url] = await adminBucket().file(path).getSignedUrl({ action: "read", expires: Date.now() + ttlMs });
+  return url;
 }

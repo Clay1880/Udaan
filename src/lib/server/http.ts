@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 import { QuizError } from "@/lib/quiz/service";
+import { PosterError } from "@/lib/poster/service";
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -15,7 +16,16 @@ const QUIZ_STATUS: Record<QuizError["code"], number> = {
   BAD_INPUT: 400,
 };
 
-/** Extra mappers (e.g. PosterError in Task 7). Return a Response to claim the error, or null to pass. */
+const POSTER_STATUS: Record<PosterError["code"], number> = {
+  WINDOW_NOT_OPEN: 403,
+  WINDOW_CLOSED: 403,
+  BAD_PATH: 400,
+  NOT_FOUND: 404,
+  BAD_TYPE: 415,
+  TOO_LARGE: 413,
+};
+
+/** Extra mappers for other error types. Return a Response to claim the error, or null to pass. */
 export type ErrorMapper = (e: unknown) => Response | null;
 const extraMappers: ErrorMapper[] = [];
 export function registerErrorMapper(m: ErrorMapper): void {
@@ -25,6 +35,7 @@ export function registerErrorMapper(m: ErrorMapper): void {
 export function errorResponse(e: unknown): Response {
   if (e instanceof HttpError) return Response.json({ error: e.message }, { status: e.status });
   if (e instanceof QuizError) return Response.json({ error: e.message, code: e.code }, { status: QUIZ_STATUS[e.code] });
+  if (e instanceof PosterError) return Response.json({ error: e.message, code: e.code }, { status: POSTER_STATUS[e.code] });
   if (e instanceof ZodError) {
     return Response.json({ error: "Invalid input", issues: e.issues.map((i) => i.message) }, { status: 400 });
   }
