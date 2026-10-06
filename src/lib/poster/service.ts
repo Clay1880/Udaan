@@ -45,23 +45,30 @@ function ownPath(uid: string, path: string): boolean {
   return /^[A-Za-z0-9._-]+$/.test(name) && !name.includes("..");
 }
 
+/** Delete a rejected upload, but never the file the student's accepted poster record points at. */
+async function discard(deps: PosterDeps, uid: string, path: string): Promise<void> {
+  const current = await deps.store.get(uid);
+  if (current?.path === path) return;
+  await deps.store.remove(path);
+}
+
 export async function confirmPoster(uid: string, path: string, deps: PosterDeps): Promise<PosterRecord> {
   if (!ownPath(uid, path)) throw new PosterError("BAD_PATH");
 
   const state = windowState(deps.now(), deps.window);
   if (state !== "open") {
-    await deps.store.remove(path);
+    await discard(deps, uid, path);
     throw new PosterError(state === "before" ? "WINDOW_NOT_OPEN" : "WINDOW_CLOSED");
   }
 
   const meta = await deps.store.head(path);
   if (!meta) throw new PosterError("NOT_FOUND");
   if (!(POSTER.allowedTypes as readonly string[]).includes(meta.contentType)) {
-    await deps.store.remove(path);
+    await discard(deps, uid, path);
     throw new PosterError("BAD_TYPE");
   }
   if (meta.size > POSTER.maxBytes) {
-    await deps.store.remove(path);
+    await discard(deps, uid, path);
     throw new PosterError("TOO_LARGE");
   }
 
