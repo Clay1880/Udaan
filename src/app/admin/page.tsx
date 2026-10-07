@@ -11,6 +11,7 @@ import { ApiError } from "@/lib/client/api";
 import { formatIst } from "@/lib/client/format";
 import { useRequireMe } from "@/lib/client/use-me";
 import { BRANCHES, BRANCH_LABELS, YEARS } from "@/lib/config";
+import type { EventSettings, Mode } from "@/lib/event-mode";
 
 type Tab = "participants" | "quiz" | "posters";
 const TABS: { id: Tab; label: string }[] = [
@@ -59,9 +60,60 @@ function Stat({ n, label, tone, tilt }: { n: number; label: string; tone: Tone; 
 const th = "whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em]";
 const td = "px-4 py-3 align-middle";
 
+const MODE_OPTIONS: { id: Mode; label: string; hint: string }[] = [
+  { id: "auto", label: "Auto", hint: "follows the event dates" },
+  { id: "open", label: "Open", hint: "open now, whatever the date" },
+  { id: "closed", label: "Closed", hint: "closed now, whatever the date" },
+];
+
+function EventControls({
+  settings,
+  busy,
+  onChange,
+}: {
+  settings: EventSettings;
+  busy: boolean;
+  onChange: (key: keyof EventSettings, mode: Mode) => void;
+}) {
+  return (
+    <Card className="fade-up mt-8 p-4 sm:p-6" tone="white">
+      <Label>Event controls</Label>
+      <p className="mt-1 text-sm opacity-75">
+        Override the dates to test any time. Set both back to <b>Auto</b> before the real event. Changes apply to students on their next page load.
+      </p>
+      <div className="mt-4 grid gap-5 sm:grid-cols-2">
+        {(["quiz", "poster"] as const).map((key) => (
+          <div key={key}>
+            <p className="font-display text-lg capitalize">{key}</p>
+            <div role="group" aria-label={`${key} window`} className="mt-2 grid grid-cols-3 gap-2">
+              {MODE_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={settings[key] === o.id}
+                  onClick={() => settings[key] !== o.id && onChange(key, o.id)}
+                  className={`min-h-12 rounded-xl border-[3px] border-ink px-2 text-sm font-bold shadow-[3px_3px_0_var(--color-ink)] disabled:opacity-50 sm:text-base ${
+                    settings[key] === o.id ? (o.id === "closed" ? "bg-signal text-white" : "bg-sun") : "bg-white"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-sm opacity-75">{MODE_OPTIONS.find((o) => o.id === settings[key])!.hint}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export default function AdminPage() {
   const { me, error: meError, call, refresh } = useRequireMe(false);
   const [rows, setRows] = useState<AdminRow[] | null>(null);
+  const [settings, setSettings] = useState<EventSettings | null>(null);
+  const [savingMode, setSavingMode] = useState(false);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [denied, setDenied] = useState(false);
   const [reloading, setReloading] = useState(false);
@@ -96,6 +148,22 @@ export default function AdminPage() {
   useEffect(() => {
     if (isAdmin) void load().catch(() => {});
   }, [isAdmin, load]);
+
+  useEffect(() => {
+    if (isAdmin) call<EventSettings>("/api/admin/settings").then(setSettings).catch(() => {});
+  }, [isAdmin, call]);
+
+  async function changeMode(key: keyof EventSettings, mode: Mode) {
+    setSavingMode(true);
+    setError("");
+    try {
+      setSettings(await call<EventSettings>("/api/admin/settings", { method: "POST", body: { [key]: mode } }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change the setting.");
+    } finally {
+      setSavingMode(false);
+    }
+  }
 
   // Keep signed poster links fresh while the page stays open.
   useEffect(() => {
@@ -246,6 +314,8 @@ export default function AdminPage() {
           </div>
         </div>
       </section>
+
+      {settings && <EventControls settings={settings} busy={savingMode} onChange={changeMode} />}
 
       <Card className="fade-up mt-8 overflow-hidden" tone="white">
         <div className="space-y-5 border-b-[3px] border-ink bg-paper p-4 sm:p-6">

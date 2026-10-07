@@ -9,7 +9,9 @@ const fmt = new Intl.DateTimeFormat("en-IN", {
 
 export const formatIst = (ms: number) => `${fmt.format(new Date(ms))} IST`;
 
-export function windowMessage(w: { state: "before" | "open" | "closed"; openAt: number; closeAt: number }): string {
+export function windowMessage(w: { state: "before" | "open" | "closed"; openAt: number; closeAt: number; mode?: "auto" | "open" | "closed" }): string {
+  if (w.mode === "open") return "Open now";
+  if (w.mode === "closed") return "Closed by the organisers";
   if (w.state === "before") return `Opens ${formatIst(w.openAt)}`;
   // closeAt is exclusive (00:00 on 10 Oct); show the last open minute so it reads as "9 Oct".
   if (w.state === "open") return `Open till ${formatIst(w.closeAt - 1)}`;

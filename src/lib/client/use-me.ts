@@ -2,16 +2,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
+import type { Mode } from "@/lib/event-mode";
 import type { Profile } from "@/lib/profile";
 import type { WindowState } from "@/lib/window";
 import { api, ApiError } from "./api";
+
+/** `state` already reflects any organiser override (`mode`); the dates are always the real ones. */
+export interface WindowInfo {
+  state: WindowState;
+  mode: Mode;
+  openAt: number;
+  closeAt: number;
+}
 
 export interface Me {
   email: string;
   name: string;
   isAdmin: boolean;
   profile: Profile | null;
-  window: { state: WindowState; openAt: number; closeAt: number };
+  window: WindowInfo; // quiz
+  posterWindow: WindowInfo;
   serverNow: number;
   attempt: { status: "in_progress" | "submitted"; score: number | null } | null;
   poster: { uploadedAt: number; fileType: string } | null;

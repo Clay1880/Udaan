@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export const GET = route(async (req) => {
   const u = await requireUser(req);
-  const view = await getAttemptView(u.uid, quizDeps());
+  const view = await getAttemptView(u.uid, await quizDeps());
   if (!view) throw new HttpError(404, "You have not started the quiz.");
   return view;
 });

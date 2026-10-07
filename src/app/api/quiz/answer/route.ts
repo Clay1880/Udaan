@@ -11,6 +11,6 @@ const Body = z.object({ index: z.number(), choice: z.number() });
 export const POST = route(async (req) => {
   const u = await requireUser(req);
   const { index, choice } = Body.parse(await readJson(req));
-  await saveAnswer(u.uid, index, choice, quizDeps());
+  await saveAnswer(u.uid, index, choice, await quizDeps());
   return { ok: true };
 });

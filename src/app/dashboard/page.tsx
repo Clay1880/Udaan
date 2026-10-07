@@ -35,7 +35,7 @@ function quizStatus(me: Me): Status {
 }
 
 function posterStatus(me: Me): Status {
-  const { poster, window: w } = me;
+  const { poster, posterWindow: w } = me;
   if (poster) {
     return {
       tone: "green",

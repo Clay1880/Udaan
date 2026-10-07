@@ -96,7 +96,7 @@ export default function PosterPage() {
   }, [load]);
 
   // Flip between locked / open / closed when the window boundary passes while the page is open.
-  useWindowBoundary(me, refresh);
+  useWindowBoundary(me, refresh, "posterWindow");
 
   useEffect(() => () => {
     if (picked?.preview) URL.revokeObjectURL(picked.preview);
@@ -221,7 +221,7 @@ export default function PosterPage() {
     );
   }
 
-  const w = me.window;
+  const w = me.posterWindow;
   const busy = phase !== "idle";
   const windowTone = w.state === "open" ? "sun" : w.state === "before" ? "white" : "red";
 

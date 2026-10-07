@@ -13,6 +13,6 @@ export const POST = route(async (req) => {
   const u = await requireUser(req);
   if (!(await getUser(u.uid))) throw new HttpError(403, "Complete your profile first.");
   const { path } = Body.parse(await readJson(req));
-  const r = await confirmPoster(u.uid, path, posterDeps());
+  const r = await confirmPoster(u.uid, path, await posterDeps());
   return { ok: true, uploadedAt: r.uploadedAt, fileType: r.fileType };
 });

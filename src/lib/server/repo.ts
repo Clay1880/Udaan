@@ -11,6 +11,7 @@ import {
   type SetAnswerResult,
 } from "@/lib/quiz/service";
 import type { Profile } from "@/lib/profile";
+import { parseSettings, type EventSettings } from "@/lib/event-mode";
 
 export interface UserDoc extends Profile {
   uid: string;
@@ -79,6 +80,17 @@ export class FirestoreAttemptStore implements AttemptStore {
       return "ok" as const;
     });
   }
+}
+
+/** Organiser overrides for the quiz and poster windows (`settings/event`); missing means "auto". */
+export async function getEventSettings(): Promise<EventSettings> {
+  const snap = await col("settings").doc("event").get();
+  return parseSettings(snap.data());
+}
+
+export async function setEventSettings(patch: Partial<EventSettings>): Promise<EventSettings> {
+  await col("settings").doc("event").set(patch, { merge: true });
+  return getEventSettings();
 }
 
 export async function getUser(uid: string): Promise<UserDoc | null> {

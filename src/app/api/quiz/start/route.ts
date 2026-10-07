@@ -10,5 +10,5 @@ export const maxDuration = 60;
 export const POST = route(async (req) => {
   const u = await requireUser(req);
   if (!(await getUser(u.uid))) throw new HttpError(403, "Complete your profile first.");
-  return startAttempt(u.uid, quizDeps());
+  return startAttempt(u.uid, await quizDeps());
 });

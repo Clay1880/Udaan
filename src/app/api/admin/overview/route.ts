@@ -16,7 +16,7 @@ export const GET = route(async (req) => {
   await requireAdmin(req);
   const [users, attempts, posters] = await Promise.all([listUsers(), listAttemptSummaries(), listPosterRecords()]);
   // Students who answered and left never trigger scoring themselves: finalize expired attempts first.
-  await settleExpiredSummaries(attempts, quizDeps());
+  await settleExpiredSummaries(attempts, await quizDeps());
   const rows: AdminRow[] = await Promise.all(
     users.map(async (u) => {
       const a = attempts.get(u.uid);

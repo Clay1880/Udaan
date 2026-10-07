@@ -6,6 +6,7 @@ import type { PosterRecord } from "@/lib/poster/service";
 const h = vi.hoisted(() => ({
   attempts: null as unknown as { store: unknown },
   users: new Map<string, Record<string, unknown>>(),
+  settings: { quiz: "auto", poster: "auto" } as { quiz: string; poster: string },
   posters: new Map<string, unknown>(),
   files: new Map<string, { contentType: string; size: number; owner: string }>(),
   started: [] as unknown[],
@@ -53,6 +54,11 @@ vi.mock("@/lib/server/repo", async () => {
         h.posters.set(uid, r);
       }
     },
+    getEventSettings: async () => ({ ...h.settings }),
+    setEventSettings: async (p: Record<string, string>) => {
+      Object.assign(h.settings, p);
+      return { ...h.settings };
+    },
     getUser: async (uid: string) => h.users.get(uid) ?? null,
     saveUser: async (u: { uid: string }) => void h.users.set(u.uid, u),
     getPosterRecord: async (uid: string) => h.posters.get(uid) ?? null,
@@ -89,6 +95,8 @@ const profile = { name: "Ab Cd", rollNo: "12", year: "FE", branch: "IT" };
 beforeEach(async () => {
   await import("@/lib/server/repo"); // runs the mock factory so the shared store exists
   h.users.clear();
+  h.settings.quiz = "auto";
+  h.settings.poster = "auto";
   h.posters.clear();
   h.files.clear();
   h.removed.length = 0;
@@ -116,6 +124,8 @@ const routes: [string, () => Promise<{ GET?: any; POST?: any }>, string][] = [
   ["poster/confirm", () => import("./poster/confirm/route"), "POST"],
   ["poster/start", () => import("./poster/start/route"), "POST"],
   ["admin/overview", () => import("./admin/overview/route"), "GET"],
+  ["admin/settings GET", () => import("./admin/settings/route"), "GET"],
+  ["admin/settings POST", () => import("./admin/settings/route"), "POST"],
 ];
 
 describe("authentication on every route", () => {
@@ -443,5 +453,54 @@ describe("GET /api/admin/overview", () => {
     const m: Record<string, unknown> = await import("./admin/overview/route");
     expect(m.GET).toBeTypeOf("function");
     for (const verb of ["POST", "PUT", "PATCH", "DELETE"]) expect(m[verb]).toBeUndefined();
+  });
+});
+
+describe("organiser overrides (admin event controls)", () => {
+  const ADM = { authorization: "Bearer adm" };
+  beforeEach(() => {
+    h.tokens.set("adm", { uid: "a1", email: "admin@x.y", email_verified: true });
+    h.users.set("u1", { uid: "u1", email: "a@b.c", ...profile, createdAt: 1 });
+  });
+
+  it("only admins can read or change settings", async () => {
+    const { GET, POST } = await import("./admin/settings/route");
+    expect((await call(GET, { method: "GET", headers: AUTH })).status).toBe(403);
+    expect((await call(POST, { headers: AUTH, body: { quiz: "open" } })).status).toBe(403);
+    expect(h.settings.quiz).toBe("auto");
+  });
+
+  it("an admin sets one feature without touching the other, and bad input is rejected", async () => {
+    const { GET, POST } = await import("./admin/settings/route");
+    const res = await call(POST, { headers: ADM, body: { quiz: "closed" } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ quiz: "closed", poster: "auto" });
+    expect(await (await call(GET, { method: "GET", headers: ADM })).json()).toEqual({ quiz: "closed", poster: "auto" });
+    expect((await call(POST, { headers: ADM, body: { quiz: "maybe" } })).status).toBe(400);
+    expect((await call(POST, { headers: ADM, body: {} })).status).toBe(400);
+  });
+
+  it("closed blocks the quiz and poster inside the real window; me reflects it per feature", async () => {
+    h.settings.quiz = "closed";
+    const start = await import("./quiz/start/route");
+    expect((await call(start.POST, { headers: AUTH })).status).toBe(403);
+    expect(mem().data.size).toBe(0);
+
+    const me = await import("./me/route");
+    const b = await (await call(me.GET, { method: "GET", headers: AUTH })).json();
+    expect(b.window).toMatchObject({ state: "closed", mode: "closed" });
+    expect(b.posterWindow).toMatchObject({ state: "open", mode: "auto" });
+  });
+
+  it("open lets the quiz start before the real window opens", async () => {
+    const now = Date.now();
+    process.env.WINDOW_OPEN_ISO = new Date(now + 3600_000).toISOString();
+    process.env.WINDOW_CLOSE_ISO = new Date(now + 7200_000).toISOString();
+    const start = await import("./quiz/start/route");
+    expect((await call(start.POST, { headers: AUTH })).status).toBe(403);
+    h.settings.quiz = "open";
+    const res = await call(start.POST, { headers: AUTH });
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe("in_progress");
   });
 });

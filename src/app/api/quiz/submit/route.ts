@@ -5,4 +5,4 @@ import { submitAttempt } from "@/lib/quiz/service";
 
 export const dynamic = "force-dynamic";
 
-export const POST = route(async (req) => submitAttempt((await requireUser(req)).uid, quizDeps()));
+export const POST = route(async (req) => submitAttempt((await requireUser(req)).uid, await quizDeps()));

@@ -16,6 +16,6 @@ export const POST = route(async (req) => {
   if (!profile) throw new HttpError(403, "Complete your profile first.");
   const { type, size } = Body.parse(await readJson(req));
   const origin = req.headers.get("origin") ?? new URL(req.url).origin;
-  const uploadUrl = await startPoster(u.uid, { name: posterDriveName(profile, type), contentType: type, size, origin }, posterDeps());
+  const uploadUrl = await startPoster(u.uid, { name: posterDriveName(profile, type), contentType: type, size, origin }, await posterDeps());
   return { uploadUrl };
 });
