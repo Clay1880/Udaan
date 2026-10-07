@@ -1,6 +1,7 @@
 import { getWindow } from "@/lib/config";
 import { applyMode } from "@/lib/event-mode";
-import { FALLBACK_BANK } from "@/lib/quiz/fallback-bank";
+import bank from "@/lib/quiz/bank.json";
+import type { BankQuestion } from "@/lib/quiz/bank";
 import { geminiCallModel } from "@/lib/quiz/gemini";
 import { generateQuestions } from "@/lib/quiz/generate";
 import type { QuizDeps } from "@/lib/quiz/service";
@@ -12,12 +13,12 @@ export async function quizDeps(): Promise<QuizDeps> {
   const settings = await getEventSettings();
   // Built lazily: only generation needs the Gemini client, so other routes work without a key.
   const callModel = (prompt: string) =>
-    geminiCallModel(process.env.GEMINI_API_KEY ?? "", process.env.GEMINI_MODEL ?? "gemini-2.5-flash")(prompt);
+    geminiCallModel(process.env.GEMINI_API_KEY ?? "", process.env.GEMINI_MODEL ?? "gemini-3.5-flash")(prompt);
   return {
     store: new FirestoreAttemptStore(),
     now: Date.now,
     window: applyMode(getWindow(), settings.quiz),
-    generate: (count) => generateQuestions(count, { callModel, bank: FALLBACK_BANK }),
+    generate: (count) => generateQuestions(count, { callModel, bank: bank as BankQuestion[] }),
   };
 }
 

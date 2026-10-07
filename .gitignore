@@ -8,3 +8,6 @@ next-env.d.ts
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+scripts/.bank-progress.json
+scripts/.check-progress.json

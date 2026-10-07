@@ -1,8 +1,17 @@
 import { cleanQuestions } from "./validate";
 import { shuffle } from "./random";
+import { pickFromBank, type BankQuestion } from "./bank";
 import type { Question } from "./types";
 
-export const DEFAULT_TIMEOUT_MS = 10000;
+/** Gemini gets this long; after that the student gets reviewed questions from the bank instead. */
+export const DEFAULT_TIMEOUT_MS = 2000;
+/** After a Gemini failure, skip it for this long so a flood of starts does not keep hitting a dead key. */
+const BREAKER_MS = 60_000;
+
+export interface Breaker {
+  openUntil: number;
+}
+const sharedBreaker: Breaker = { openUntil: 0 };
 
 export const TOPICS = [
   "History and wars of the Indian Air Force",
@@ -32,10 +41,11 @@ export function buildPrompt(requested: number, topics: string[], seed: number): 
 
 export interface GenerateDeps {
   callModel: (prompt: string) => Promise<string>;
-  bank: Question[];
+  bank: readonly BankQuestion[];
   random?: () => number;
-  attempts?: number;
   timeoutMs?: number;
+  breaker?: Breaker;
+  now?: () => number;
 }
 
 function stripFences(text: string): string {
@@ -61,17 +71,22 @@ export async function generateQuestions(
   d: GenerateDeps,
 ): Promise<{ questions: Question[]; source: "gemini" | "fallback" }> {
   const random = d.random ?? Math.random;
-  const attempts = d.attempts ?? 2;
-  for (let n = 0; n < attempts; n++) {
-    try {
-      const topics = shuffle(TOPICS, random).slice(0, 5);
-      const prompt = buildPrompt(count + 3, topics, Math.floor(random() * 1e9));
-      const text = await withTimeout(d.callModel(prompt), d.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-      return { questions: cleanQuestions(JSON.parse(stripFences(text)), count).map((x) => shuffleOptions(x, random)), source: "gemini" };
-    } catch (e) {
-      console.error(`question generation attempt ${n + 1} failed:`, e instanceof Error ? e.message : e);
-    }
+  const breaker = d.breaker ?? sharedBreaker;
+  const now = d.now ?? Date.now;
+  const fromBank = () => ({
+    questions: pickFromBank(d.bank, count, random).map((x) => shuffleOptions(x, random)),
+    source: "fallback" as const,
+  });
+
+  if (now() < breaker.openUntil) return fromBank();
+  try {
+    const topics = shuffle(TOPICS, random).slice(0, 5);
+    const prompt = buildPrompt(count + 3, topics, Math.floor(random() * 1e9));
+    const text = await withTimeout(d.callModel(prompt), d.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    return { questions: cleanQuestions(JSON.parse(stripFences(text)), count).map((x) => shuffleOptions(x, random)), source: "gemini" };
+  } catch (e) {
+    breaker.openUntil = now() + BREAKER_MS;
+    console.error("question generation failed, using the bank:", e instanceof Error ? e.message : e);
   }
-  if (d.bank.length < count) throw new Error("fallback bank smaller than question count");
-  return { questions: shuffle(d.bank, random).slice(0, count).map((x) => shuffleOptions(x, random)), source: "fallback" };
+  return fromBank();
 }
