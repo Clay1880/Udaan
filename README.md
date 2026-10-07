@@ -28,7 +28,7 @@ Without Firebase config the landing page still renders; sign-in shows an error.
    `npx firebase-tools deploy --only firestore:rules --project <project-id>`
 
 ## Poster storage (Google Drive)
-Posters go straight from the student's browser into one Drive folder, named `<year>_<branch>_<roll>.<ext>`. Students never see Drive.
+Posters go straight from the student's browser into one Drive folder, named `<year>_<branch>_<registration no>.<ext>`. Students never see Drive.
 1. Google Cloud console (the Firebase project works): APIs & Services > enable **Google Drive API**.
 2. OAuth consent screen: set the publishing status to **In production** (while on "Testing" the refresh token expires after 7 days). Scope `drive.file` needs no Google verification.
 3. Credentials > Create credentials > OAuth client ID > **Web application**. Add redirect URI `http://localhost:3000/oauth2callback` (for step 5 only). Copy `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.

@@ -25,7 +25,7 @@ describe("filterRows", () => {
     expect(filterRows(rows, { year: "FE", branch: "COMP", q: "" }).map((r) => r.uid)).toEqual(["c"]);
     expect(filterRows(rows, { year: "", branch: "", q: "" })).toHaveLength(4);
   });
-  it("searches name, roll number and email, case-insensitively", () => {
+  it("searches name, registration number and email, case-insensitively", () => {
     expect(filterRows(rows, { year: "", branch: "", q: "  ASHA " }).map((r) => r.uid)).toEqual(["a"]);
     expect(filterRows(rows, { year: "", branch: "", q: "fe-12" }).map((r) => r.uid)).toEqual(["a"]);
     expect(filterRows(rows, { year: "", branch: "", q: "asha@" }).map((r) => r.uid)).toEqual(["a"]);
@@ -61,7 +61,7 @@ describe("adminCsv", () => {
   it("has one header row and one record per student", () => {
     const csv = adminCsv(rows);
     const lines = csv.split("\r\n");
-    expect(lines[0]).toBe("Name,Roll No,Year,Branch,Email,Quiz status,Quiz score,Poster submitted,Poster time (IST)");
+    expect(lines[0]).toBe("Name,Registration No,Year,Branch,Email,Quiz status,Quiz score,Poster submitted,Poster time (IST)");
     expect(lines).toHaveLength(5);
     expect(lines[1]).toBe("Asha Rao,FE-12,FE,IT,asha@x.y,submitted,12,no,");
     expect(lines[2].startsWith("Bilal,7,TE,COMP,e@x.y,in progress,,yes,")).toBe(true);

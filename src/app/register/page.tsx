@@ -16,7 +16,7 @@ type FieldErrors = Partial<Record<keyof Form, string>>;
 
 const MESSAGES: Record<keyof Form, string> = {
   name: "Enter your full name (2 to 80 characters).",
-  rollNo: "Enter your roll number: up to 20 letters, digits, - _ or /.",
+  rollNo: "Enter your registration number: up to 20 letters, digits, - _ or /.",
   year: "Pick your year.",
   branch: "Pick your branch.",
 };
@@ -148,7 +148,7 @@ export default function Register() {
                       />
                       {fieldError("name")}
                     </Field>
-                    <Field label="Roll number" hint={fieldErrors.rollNo ? undefined : "As printed on your college ID."}>
+                    <Field label="Registration number" hint={fieldErrors.rollNo ? undefined : "As printed on your college ID."}>
                       <input
                         className={inputClass}
                         value={form.rollNo}

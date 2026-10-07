@@ -157,7 +157,7 @@ export default function Dashboard() {
                 <Tag tone="white">{BRANCH_LABELS[p.branch]}</Tag>
               </li>
               <li>
-                <Tag tone="white">Roll {p.rollNo}</Tag>
+                <Tag tone="white">Reg. {p.rollNo}</Tag>
               </li>
             </ul>
             <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">

@@ -52,7 +52,7 @@ export function summarise(rows: AdminRow[]) {
   };
 }
 
-const HEADERS = ["Name", "Roll No", "Year", "Branch", "Email", "Quiz status", "Quiz score", "Poster submitted", "Poster time (IST)"];
+const HEADERS = ["Name", "Registration No", "Year", "Branch", "Email", "Quiz status", "Quiz score", "Poster submitted", "Poster time (IST)"];
 
 /** CSV of the given rows. Every cell goes through `csvCell`, which neutralises formula injection. */
 export function adminCsv(rows: AdminRow[]): string {

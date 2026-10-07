@@ -266,7 +266,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-[1fr_10rem_14rem_auto] lg:items-end">
             <div className="col-span-2 lg:col-span-1">
               <Field label="Search">
-                <input type="search" className={inputClass} placeholder="Name, roll no or email" value={q} onChange={(e) => setQ(e.target.value)} />
+                <input type="search" className={inputClass} placeholder="Name, registration no or email" value={q} onChange={(e) => setQ(e.target.value)} />
               </Field>
             </div>
             <Field label="Year">
@@ -357,7 +357,7 @@ export default function AdminPage() {
                   <div className="flex flex-1 flex-col p-4">
                     <p className="break-words text-lg font-bold leading-tight">{r.name}</p>
                     <p className="mt-1 text-sm font-semibold opacity-80">
-                      Roll {r.rollNo} · {r.year} · {r.branch}
+                      Reg. {r.rollNo} · {r.year} · {r.branch}
                     </p>
                     <p className="mt-1 text-sm font-medium">
                       {formatIst(p.uploadedAt)} · {(FILE_EXT[p.fileType] ?? "file").toUpperCase()}
@@ -391,7 +391,7 @@ export default function AdminPage() {
                   <th scope="col" className={`${th} sticky left-0 z-10 bg-white`}>
                     Name
                   </th>
-                  <th scope="col" className={th}>Roll no</th>
+                  <th scope="col" className={th}>Registration no</th>
                   <th scope="col" className={th}>Year</th>
                   <th scope="col" className={th}>Branch</th>
                   {tab === "participants" && (

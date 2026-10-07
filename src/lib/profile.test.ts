@@ -11,7 +11,7 @@ describe("ProfileSchema", () => {
     for (const branch of ["COMP", "IT", "ENTC", "MECH", "ARE"]) expect(ProfileSchema.safeParse({ ...ok, branch }).success).toBe(true);
     for (const year of ["FE", "SE", "TE", "BE"]) expect(ProfileSchema.safeParse({ ...ok, year }).success).toBe(true);
   });
-  it("rejects unknown year/branch, short name, spaces or symbols in roll number", () => {
+  it("rejects unknown year/branch, short name, spaces or symbols in registration number", () => {
     expect(ProfileSchema.safeParse({ ...ok, year: "ME" }).success).toBe(false);
     expect(ProfileSchema.safeParse({ ...ok, branch: "CIVIL" }).success).toBe(false);
     expect(ProfileSchema.safeParse({ ...ok, name: "A" }).success).toBe(false);
