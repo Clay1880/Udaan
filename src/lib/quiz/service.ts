@@ -11,7 +11,7 @@ export interface AttemptRecord {
   status: "in_progress" | "submitted";
   score: number | null;
   submittedAt: number | null;
-  source: "gemini" | "fallback";
+  source: "gemini" | "fallback" | "bank";
 }
 
 export class AlreadyExistsError extends Error {}
@@ -60,7 +60,7 @@ export interface QuizDeps {
   store: AttemptStore;
   now: () => number;
   window: { openAt: number; closeAt: number };
-  generate: (count: number) => Promise<{ questions: Question[]; source: "gemini" | "fallback" }>;
+  generate: (count: number) => Promise<{ questions: Question[]; source: "gemini" | "fallback" | "bank" }>;
 }
 
 export interface AttemptView {

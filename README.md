@@ -2,7 +2,7 @@
 
 Air Force Day event site: quiz + poster competitions. Open 8-9 Oct 2026 (IST).
 
-Next.js (App Router) + Firebase (Auth, Firestore) + Google Drive (posters) + Gemini for quiz questions.
+Next.js (App Router) + Firebase (Auth, Firestore) + Google Drive (posters); quiz questions come from a bundled question bank (`src/lib/quiz/bank.json`).
 
 ## Run locally
 1. `npm install`
@@ -23,8 +23,7 @@ Without Firebase config the landing page still renders; sign-in shows an error.
 4. Project settings > General > Your apps > Web app: copy the config into the `NEXT_PUBLIC_FIREBASE_*` variables.
 5. Project settings > Service accounts > Generate new private key: copy `project_id`, `client_email`, `private_key` into `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` (keep the `\n` escapes).
 6. Authentication > Settings > Authorized domains: add the deployed domain (keep `localhost`).
-7. Get a Gemini API key from Google AI Studio for `GEMINI_API_KEY`.
-8. Deploy the rules: `npx firebase-tools login`, then
+7. Deploy the rules: `npx firebase-tools login`, then
    `npx firebase-tools deploy --only firestore:rules --project <project-id>`
 
 ## Poster storage (Google Drive)
