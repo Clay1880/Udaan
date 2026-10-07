@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminCsv, filterRows, posterFileName, quizLabel, sortByScore, summarise, type AdminRow } from "@/lib/admin/rows";
+import { adminCsv, filterRows, formatDuration, rankRows, posterFileName, quizLabel, sortByScore, summarise, type AdminRow } from "@/lib/admin/rows";
 
 const row = (o: Partial<AdminRow> & { uid: string }): AdminRow => ({
   name: "Name",
@@ -36,6 +36,19 @@ describe("sortByScore", () => {
   it("puts submitted scores first, highest first, then in-progress and not started", () => {
     expect(sortByScore(rows).map((r) => r.uid)).toEqual(["c", "a", "b", "d"]);
   });
+  it("breaks score ties by fastest time", () => {
+    const t = (uid: string, score: number, timeMs: number | null) =>
+      row({ uid, quiz: { status: "submitted", score, timeMs } });
+    const tied = [t("slow", 20, 300_000), t("fast", 20, 120_000), t("best", 20, 60_000), t("low", 19, 1_000)];
+    expect(sortByScore(tied).map((r) => r.uid)).toEqual(["best", "fast", "slow", "low"]);
+    expect(formatDuration(tied[1].quiz?.timeMs)).toBe("2:00");
+    expect(adminCsv([tied[1]]).split("\r\n")[1]).toContain(",20,120,");
+  });
+  it("ranks by score then time, ties share a rank, unfinished get none", () => {
+    const t = (uid: string, score: number, timeMs: number) => row({ uid, quiz: { status: "submitted", score, timeMs } });
+    const r = rankRows([t("a", 20, 100), t("b", 20, 100), t("c", 20, 50), t("d", 19, 10), row({ uid: "e" })]);
+    expect([...r]).toEqual([["c", 1], ["a", 2], ["b", 2], ["d", 4]]);
+  });
   it("does not mutate its input", () => {
     const copy = [...rows];
     sortByScore(rows);
@@ -61,11 +74,11 @@ describe("adminCsv", () => {
   it("has one header row and one record per student", () => {
     const csv = adminCsv(rows);
     const lines = csv.split("\r\n");
-    expect(lines[0]).toBe("Name,Registration No,Year,Branch,Email,Quiz status,Quiz score,Poster submitted,Poster time (IST)");
+    expect(lines[0]).toBe("Name,Registration No,Year,Branch,Email,Quiz status,Quiz score,Quiz time (sec),Poster submitted,Poster time (IST)");
     expect(lines).toHaveLength(5);
-    expect(lines[1]).toBe("Asha Rao,FE-12,FE,IT,asha@x.y,submitted,12,no,");
-    expect(lines[2].startsWith("Bilal,7,TE,COMP,e@x.y,in progress,,yes,")).toBe(true);
-    expect(lines[4]).toBe("Dev,3,BE,MECH,e@x.y,not started,,no,");
+    expect(lines[1]).toBe("Asha Rao,FE-12,FE,IT,asha@x.y,submitted,12,,no,");
+    expect(lines[2].startsWith("Bilal,7,TE,COMP,e@x.y,in progress,,,yes,")).toBe(true);
+    expect(lines[4]).toBe("Dev,3,BE,MECH,e@x.y,not started,,,no,");
   });
   it("neutralises formula injection in names and roll numbers", () => {
     const csv = adminCsv([

@@ -6,7 +6,7 @@ import { Cloud, Lock, Sparkle } from "@/components/art";
 import { Button, Card, Field, Label, Tag, inputClass, type Tone } from "@/components/ui";
 import { LoadErrorPanel, LoadingPanel } from "@/components/page-state";
 import { SiteHeader } from "@/components/site-header";
-import { adminCsv, FILE_EXT, filterRows, posterFileName, quizLabel, sortByScore, summarise, type AdminRow } from "@/lib/admin/rows";
+import { adminCsv, FILE_EXT, filterRows, posterFileName, formatDuration, quizLabel, rankRows, sortByScore, summarise, type AdminRow } from "@/lib/admin/rows";
 import { ApiError } from "@/lib/client/api";
 import { formatIst } from "@/lib/client/format";
 import { useRequireMe } from "@/lib/client/use-me";
@@ -180,7 +180,11 @@ export default function AdminPage() {
   }, [isAdmin, load]);
 
   const filtered = useMemo(() => filterRows(rows ?? [], { year, branch, q }), [rows, year, branch, q]);
-  const visible = useMemo(() => (tab === "quiz" ? sortByScore(filtered) : tab === "posters" ? filtered.filter((r) => r.poster) : filtered), [filtered, tab]);
+  const [ranked, setRanked] = useState(false);
+  const showRank = ranked && tab !== "posters";
+  const ordered = useMemo(() => (tab === "quiz" || showRank ? sortByScore(filtered) : filtered), [filtered, tab, showRank]);
+  const visible = useMemo(() => (tab === "posters" ? filtered.filter((r) => r.poster) : ordered), [filtered, ordered, tab]);
+  const ranks = useMemo(() => rankRows(filtered), [filtered]);
   const stats = useMemo(() => summarise(rows ?? []), [rows]);
   const filteredPosters = useMemo(() => filtered.filter((r) => r.poster), [filtered]);
   const filtering = Boolean(year || branch || q.trim());
@@ -190,7 +194,7 @@ export default function AdminPage() {
     setError("");
     const name = `udaan-participants${suffix ? `-${suffix}` : ""}-${today()}.csv`;
     // BOM so Excel opens UTF-8 names correctly.
-    saveBlob(new Blob(["﻿" + adminCsv(tab === "quiz" ? sortByScore(filtered) : filtered)], { type: "text/csv;charset=utf-8" }), name);
+    saveBlob(new Blob(["﻿" + adminCsv(ordered, showRank)], { type: "text/csv;charset=utf-8" }), name);
     setNotice(`Exported ${filtered.length} ${filtered.length === 1 ? "row" : "rows"} to ${name}.`);
   }
 
@@ -378,7 +382,10 @@ export default function AdminPage() {
               Showing <b>{visible.length}</b> of {tab === "posters" ? `${stats.posters} posters` : `${rows.length} students`}
               {filtering && <span className="opacity-70"> · filtered</span>}
             </p>
-            <div className="grid gap-3 sm:grid-cols-3 lg:flex">
+            <div className="grid gap-3 sm:grid-cols-4 lg:flex">
+              <Button variant="ghost" className="text-base" aria-pressed={ranked} onClick={() => setRanked((v) => !v)} disabled={tab === "posters"}>
+                {ranked ? "Rank: on (score, then time)" : "Rank by score & time"}
+              </Button>
               <Button variant="ghost" className="text-base" onClick={exportCsv} disabled={filtered.length === 0}>
                 Export CSV ({filtered.length})
               </Button>
@@ -458,6 +465,11 @@ export default function AdminPage() {
               </caption>
               <thead>
                 <tr className="border-b-[3px] border-ink">
+                  {showRank && (
+                    <th scope="col" className={th}>
+                      Rank
+                    </th>
+                  )}
                   <th scope="col" className={`${th} sticky left-0 z-10 bg-white`}>
                     Name
                   </th>
@@ -470,7 +482,10 @@ export default function AdminPage() {
                     </th>
                   )}
                   <th scope="col" className={th}>
-                    Quiz
+                    Score
+                  </th>
+                  <th scope="col" className={th}>
+                    Time taken
                   </th>
                   <th scope="col" className={th}>
                     Poster
@@ -480,6 +495,7 @@ export default function AdminPage() {
               <tbody>
                 {visible.map((r) => (
                   <tr key={r.uid} className="border-b-2 border-ink/15 bg-white last:border-b-0 even:bg-paper">
+                    {showRank && <td className={`${td} font-display text-xl`}>{ranks.get(r.uid) ?? "–"}</td>}
                     <th scope="row" className={`${td} sticky left-0 z-10 max-w-[12rem] break-words bg-inherit text-left font-bold`}>
                       {r.name}
                     </th>
@@ -489,6 +505,9 @@ export default function AdminPage() {
                     {tab === "participants" && <td className={`${td} whitespace-nowrap text-sm`}>{r.email}</td>}
                     <td className={td}>
                       <QuizCell r={r} />
+                    </td>
+                    <td className={`${td} whitespace-nowrap font-mono text-sm font-semibold`}>
+                      {r.quiz?.status === "submitted" ? formatDuration(r.quiz.timeMs) || "–" : "–"}
                     </td>
                     <td className={`${td} whitespace-nowrap text-sm font-semibold`}>
                       {r.poster ? (

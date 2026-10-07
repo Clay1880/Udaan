@@ -64,7 +64,7 @@ vi.mock("@/lib/server/repo", async () => {
     getPosterRecord: async (uid: string) => h.posters.get(uid) ?? null,
     listUsers: async () => [...h.users.values()],
     listAttemptSummaries: async () =>
-      new Map([...shared.data].map(([uid, a]) => [uid, { status: a.status, score: a.score, startedAt: a.startedAt }])),
+      new Map([...shared.data].map(([uid, a]) => [uid, { status: a.status, score: a.score, startedAt: a.startedAt, submittedAt: a.submittedAt }])),
     listPosterRecords: async () => new Map(h.posters as Map<string, PosterRecord>),
     signedReadUrl: async (p: string, ttlMs?: number) => {
       h.signed.push({ path: p, ttlMs });
@@ -248,7 +248,8 @@ describe("quiz flow", () => {
     expect(subres.status).toBe(200);
     const subv = await subres.json();
     expect(subv.status).toBe("submitted");
-    expect(typeof subv.score).toBe("number");
+    expect(subv).not.toHaveProperty("score");
+    expect(typeof mem().data.get("u1")!.score).toBe("number");
     expect(hasAnswerKey(subv)).toBe(false);
 
     // after submission, further answers are rejected
@@ -272,7 +273,8 @@ describe("quiz flow", () => {
     expect((await call(attempt.GET, { method: "GET", headers: AUTH })).status).toBe(200);
     expect((await call(answer.POST, { headers: AUTH, body: { index: 2, choice: 0 } })).status).toBe(200);
     const sub = await (await call(submit.POST, { headers: AUTH })).json();
-    expect(sub.score).toBe(1);
+    expect(sub).not.toHaveProperty("score");
+    expect(mem().data.get("u1")!.score).toBe(1);
   });
 
   it("answer: 400 on invalid bodies", async () => {
@@ -421,9 +423,9 @@ describe("GET /api/admin/overview", () => {
       quiz: null,
       poster: { uploadedAt: 55, fileType: "image/png", url: "https://signed.example/posters/u2/1-ab.png?sig=1" },
     });
-    expect(rows[1].quiz).toEqual({ status: "in_progress", score: null });
+    expect(rows[1].quiz).toEqual({ status: "in_progress", score: null, timeMs: null });
     expect(rows[1].poster).toBeNull();
-    expect(rows[2].quiz).toEqual({ status: "submitted", score: 14 });
+    expect(rows[2].quiz).toEqual({ status: "submitted", score: 14, timeMs: 1 });
   });
 
   it("scores an expired in-progress attempt that the student never came back to", async () => {
@@ -432,9 +434,9 @@ describe("GET /api/admin/overview", () => {
     const { GET } = await import("./admin/overview/route");
     const { rows } = await (await call(GET, { method: "GET", headers: ADMIN })).json();
     const by = (n: string) => rows.find((r: { name: string }) => r.name === n);
-    expect(by("Asha").quiz).toEqual({ status: "submitted", score: 2 });
-    expect(by("Mira").quiz).toEqual({ status: "in_progress", score: null }); // not expired
-    expect(by("Zed =cmd").quiz).toEqual({ status: "submitted", score: 14 }); // untouched
+    expect(by("Asha").quiz).toMatchObject({ status: "submitted", score: 2 });
+    expect(by("Mira").quiz).toEqual({ status: "in_progress", score: null, timeMs: null }); // not expired
+    expect(by("Zed =cmd").quiz).toEqual({ status: "submitted", score: 14, timeMs: 1 }); // untouched
     expect(mem().data.get("u2")!.status).toBe("submitted");
   });
 

@@ -28,7 +28,13 @@ export const GET = route(async (req) => {
         rollNo: u.rollNo,
         year: u.year,
         branch: u.branch,
-        quiz: a ? { status: a.status, score: a.score ?? null } : null,
+        quiz: a
+          ? {
+              status: a.status,
+              score: a.score ?? null,
+              timeMs: a.status === "submitted" && a.submittedAt != null ? Math.max(0, a.submittedAt - a.startedAt) : null,
+            }
+          : null,
         poster: p
           ? { uploadedAt: p.uploadedAt, fileType: p.fileType, url: await signedReadUrl(p.path, POSTER_URL_TTL_MS) }
           : null,

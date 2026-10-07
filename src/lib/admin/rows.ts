@@ -10,7 +10,7 @@ export interface AdminRow {
   rollNo: string;
   year: string;
   branch: string;
-  quiz: { status: string; score: number | null } | null;
+  quiz: { status: string; score: number | null; timeMs?: number | null } | null;
   poster: { uploadedAt: number; fileType: string; url: string } | null;
 }
 
@@ -32,9 +32,30 @@ export function filterRows(rows: AdminRow[], { year, branch, q }: Filters): Admi
 
 const rank = (r: AdminRow) => (r.quiz?.status === "submitted" ? (r.quiz.score ?? 0) : r.quiz ? -1 : -2);
 
-/** Highest score first; in-progress attempts, then students who never started, at the bottom. Stable. */
+const timeOf = (r: AdminRow) => r.quiz?.timeMs ?? Infinity;
+
+/** Highest score first, then fastest; in-progress attempts, then students who never started, at the bottom. Stable. */
 export function sortByScore(rows: AdminRow[]): AdminRow[] {
-  return [...rows].sort((a, b) => rank(b) - rank(a));
+  return [...rows].sort((a, b) => rank(b) - rank(a) || (timeOf(a) === timeOf(b) ? 0 : timeOf(a) < timeOf(b) ? -1 : 1));
+}
+
+/** uid -> rank (1 = winner) for submitted attempts only. Equal score and equal time share a rank (1, 1, 3). */
+export function rankRows(rows: AdminRow[]): Map<string, number> {
+  const ranks = new Map<string, number>();
+  const done = sortByScore(rows).filter((r) => r.quiz?.status === "submitted");
+  done.forEach((r, i) => {
+    const p = done[i - 1];
+    const same = p && (p.quiz!.score ?? 0) === (r.quiz!.score ?? 0) && timeOf(p) === timeOf(r);
+    ranks.set(r.uid, same ? ranks.get(p.uid)! : i + 1);
+  });
+  return ranks;
+}
+
+/** mm:ss, or "" when there is no finished attempt. */
+export function formatDuration(ms: number | null | undefined): string {
+  if (ms == null) return "";
+  const t = Math.round(ms / 1000);
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
 }
 
 export function quizLabel(r: AdminRow): string {
@@ -52,13 +73,15 @@ export function summarise(rows: AdminRow[]) {
   };
 }
 
-const HEADERS = ["Name", "Registration No", "Year", "Branch", "Email", "Quiz status", "Quiz score", "Poster submitted", "Poster time (IST)"];
+const HEADERS = ["Name", "Registration No", "Year", "Branch", "Email", "Quiz status", "Quiz score", "Quiz time (sec)", "Poster submitted", "Poster time (IST)"];
 
 /** CSV of the given rows. Every cell goes through `csvCell`, which neutralises formula injection. */
-export function adminCsv(rows: AdminRow[]): string {
+export function adminCsv(rows: AdminRow[], withRank = false): string {
+  const ranks = withRank ? rankRows(rows) : null;
   return toCsv(
-    HEADERS,
+    withRank ? ["Rank", ...HEADERS] : HEADERS,
     rows.map((r) => [
+      ...(ranks ? [ranks.get(r.uid) ?? ""] : []),
       r.name,
       r.rollNo,
       r.year,
@@ -66,6 +89,7 @@ export function adminCsv(rows: AdminRow[]): string {
       r.email,
       r.quiz ? r.quiz.status.replace(/_/g, " ") : "not started",
       r.quiz?.status === "submitted" ? (r.quiz.score ?? "") : "",
+      r.quiz?.status === "submitted" && r.quiz.timeMs != null ? Math.round(r.quiz.timeMs / 1000) : "",
       r.poster ? "yes" : "no",
       r.poster ? formatIst(r.poster.uploadedAt) : "",
     ]),

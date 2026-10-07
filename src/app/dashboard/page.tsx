@@ -22,7 +22,7 @@ const CLOSED = "The window has closed";
 function quizStatus(me: Me): Status {
   const { attempt, window: w } = me;
   if (attempt?.status === "submitted") {
-    return { tone: "green", text: `Done · ${attempt.score ?? "–"}/${QUIZ.questionCount}`, cta: "See your result" };
+    return { tone: "green", text: "Done · submitted", cta: "View status" };
   }
   if (attempt) {
     return w.state === "open"

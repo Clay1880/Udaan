@@ -23,7 +23,7 @@ export interface Me {
   window: WindowInfo; // quiz
   posterWindow: WindowInfo;
   serverNow: number;
-  attempt: { status: "in_progress" | "submitted"; score: number | null } | null;
+  attempt: { status: "in_progress" | "submitted" } | null;
   poster: { uploadedAt: number; fileType: string } | null;
 }
 

@@ -26,7 +26,7 @@ export const GET = route(async (req) => {
     window: { state: windowState(now, applyMode(w, settings.quiz)), mode: settings.quiz, ...w },
     posterWindow: { state: windowState(now, applyMode(w, settings.poster)), mode: settings.poster, ...w },
     serverNow: now,
-    attempt: attempt ? { status: attempt.status, score: attempt.status === "submitted" ? attempt.score : null } : null,
+    attempt: attempt ? { status: attempt.status } : null,
     poster: poster ? { uploadedAt: poster.uploadedAt, fileType: poster.fileType } : null,
   };
 });

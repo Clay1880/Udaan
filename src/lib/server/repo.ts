@@ -118,7 +118,7 @@ export async function listUsers(): Promise<UserDoc[]> {
 }
 
 export async function listAttemptSummaries(): Promise<Map<string, AttemptSummary>> {
-  const snap = await col("attempts").select("status", "score", "startedAt").get();
+  const snap = await col("attempts").select("status", "score", "startedAt", "submittedAt").get();
   return new Map(snap.docs.map((d) => [d.id, d.data() as AttemptSummary]));
 }
 

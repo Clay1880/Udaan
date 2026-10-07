@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Cloud, Jet, Sparkle, Starburst } from "@/components/art";
+import { Cloud, Jet, Sparkle } from "@/components/art";
 import { Button, Card, Label, Stage, Tag } from "@/components/ui";
 import { LoadErrorPanel, LoadingPanel } from "@/components/page-state";
 import { Runner } from "@/components/quiz/runner";
@@ -149,20 +149,11 @@ export default function QuizPage() {
                 <Tag tone="green" tilt={-3} className="absolute -top-5 left-5">
                   Submitted
                 </Tag>
-                <Label>Your score</Label>
-                <Starburst className="mx-auto mt-3 h-52 w-52 sm:h-56 sm:w-56" fill="#f4b81c">
-                  <span className="bubble text-5xl text-white">
-                    {view.score ?? "–"}
-                    <span className="text-3xl">/{view.total}</span>
-                  </span>
-                  <span className="sr-only">
-                    {view.score ?? "No"} out of {view.total}
-                  </span>
-                </Starburst>
-                <p className="mt-3 text-lg font-semibold">
+                <Label>Your attempt</Label>
+                <p className="mt-5 text-lg font-semibold">
                   You answered {Object.keys(view.answers).length} of {view.total} questions.
                 </p>
-                <p className="mt-1 font-medium opacity-80">Your attempt is recorded. Thank you for flying with us!</p>
+                <p className="mt-1 font-medium opacity-80">Your attempt is recorded and results will be announced later. Thank you for flying with us!</p>
                 <Link href="/dashboard" className={`${ghostLink} mt-6 w-full sm:w-auto`}>
                   ← Back to dashboard
                 </Link>

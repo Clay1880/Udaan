@@ -70,7 +70,6 @@ export interface AttemptView {
   startedAt: number;
   deadlineAt: number;
   serverNow: number;
-  score: number | null;
   total: number;
 }
 
@@ -82,7 +81,6 @@ function toView(a: AttemptRecord, now: number): AttemptView {
     startedAt: a.startedAt,
     deadlineAt: deadlineOf(a.startedAt),
     serverNow: now,
-    score: a.status === "submitted" ? a.score : null,
     total: a.questions.length,
   };
 }
@@ -135,6 +133,7 @@ export interface AttemptSummary {
   status: string;
   score: number | null;
   startedAt: number;
+  submittedAt?: number | null;
 }
 
 const SETTLE_BATCH = 10;
@@ -151,8 +150,12 @@ export async function settleExpiredSummaries(summaries: Map<string, AttemptSumma
     await Promise.all(
       uids.slice(i, i + SETTLE_BATCH).map(async (uid) => {
         try {
-          const v = await getAttemptView(uid, deps);
-          if (v?.status === "submitted") summaries.set(uid, { ...summaries.get(uid)!, status: v.status, score: v.score });
+          const a = await deps.store.get(uid);
+          if (!a) return;
+          const done = await settle(uid, a, deps);
+          if (done.status === "submitted") {
+            summaries.set(uid, { ...summaries.get(uid)!, status: done.status, score: done.score, submittedAt: done.submittedAt });
+          }
         } catch (e) {
           console.error("could not settle expired attempt", uid, e instanceof Error ? e.message : e);
         }

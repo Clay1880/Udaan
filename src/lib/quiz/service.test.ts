@@ -108,7 +108,7 @@ describe("saveAnswer / getAttemptView", () => {
     expect(await code(saveAnswer("u1", 2, 2, deps))).toBe("NOT_IN_PROGRESS");
     const v = await getAttemptView("u1", deps);
     expect(v?.status).toBe("submitted");
-    expect(v?.score).toBe(2);
+    expect(store.data.get("u1")!.score).toBe(2);
     expect(v?.answers).toEqual({ "0": 0, "1": 1 });
   });
   it("returns null when there is no attempt", async () => {
@@ -123,7 +123,7 @@ describe("submitAttempt", () => {
     await saveAnswer("u1", 1, 3, deps);
     const v = await submitAttempt("u1", deps);
     expect(v.status).toBe("submitted");
-    expect(v.score).toBe(1);
+    expect(store.data.get("u1")!.score).toBe(1);
     expect(await code(saveAnswer("u1", 2, 2, deps))).toBe("NOT_IN_PROGRESS");
   });
   it("is idempotent", async () => {
@@ -132,12 +132,14 @@ describe("submitAttempt", () => {
     const a = await submitAttempt("u1", deps);
     clock += 10_000;
     const b = await submitAttempt("u1", deps);
-    expect(b.score).toBe(a.score);
+    expect(b).toEqual({ ...a, serverNow: b.serverNow });
     expect(store.data.get("u1")!.submittedAt).toBe(OPEN + 1000);
   });
-  it("shows the score only after submission", async () => {
+  it("never exposes the score to the student, before or after submission", async () => {
     await startAttempt("u1", deps);
-    expect((await getAttemptView("u1", deps))?.score).toBeNull();
+    expect(await getAttemptView("u1", deps)).not.toHaveProperty("score");
+    expect(await submitAttempt("u1", deps)).not.toHaveProperty("score");
+    expect(store.data.get("u1")!.score).not.toBeNull();
   });
   it("fails without an attempt", async () => {
     expect(await code(submitAttempt("nobody", deps))).toBe("NO_ATTEMPT");
@@ -215,7 +217,8 @@ describe("store atomicity contract", () => {
     await startAttempt("u1", deps);
     await saveAnswer("u1", 0, 0, deps);
     await saveAnswer("u1", 1, 1, deps);
-    expect((await submitAttempt("u1", deps)).score).toBe(2);
+    await submitAttempt("u1", deps);
+    expect(store.data.get("u1")!.score).toBe(2);
   });
   it("setAnswer after finalize is refused and does not change the score", async () => {
     await startAttempt("u1", deps);
